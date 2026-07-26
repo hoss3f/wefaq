@@ -3,92 +3,104 @@
 # 🕌 وِفاق · WEFAQ
 
 ### Halal Matchmaking Platform
-
 منصة تعارف حلال، بستر واحترام
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-Backend-000000?logo=flask&logoColor=white)
 ![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-Build-646CFF?logo=vite&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-Styling-06B6D4?logo=tailwindcss&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Database-07405E?logo=sqlite&logoColor=white)
+
+[نبذة](#-نبذة) · [المميزات](#-المميزات) · [التقنيات](#️-التقنيات) · [الهيكل](#-هيكل-المشروع) · [التشغيل](#-التشغيل) · [الدخول](#-الدخول-الافتراضي) · [الاختبارات](#-الاختبارات)
 
 </div>
 
 ---
 
-## About
+## 📖 نبذة
 
-وِفاق تطبيق ويب يساعد الشباب والشابات على التعارف الجاد بقصد الزواج، ضمن ضوابط الستر والاحترام. المستخدم يُنشئ حساباً، يجيب على أسئلة التوافق، ثم يتصفح ويتواصل تحت إشراف إداري كامل — بدون صور مكشوفة ولا دردشة عشوائية مفتوحة.
+وِفاق تطبيق ويب يساعد الشباب والشابات على التعارف الجاد بقصد الزواج، ضمن ضوابط الستر والاحترام. المتقدم يدخل بكود من الإدارة، يكمل بياناته وإجاباته، ثم يتابع حالة طلبه — تحت إشراف إداري كامل من الاستقبال إلى القرار.
 
-## ✨ What It Does
+## ✨ المميزات
 
-- 🔒 **ستر وخصوصية**: لا صور مكشوفة ولا تواصل مباشر بدون موافقة، كل تفاعل يمر بإشراف.
-- 🕌 **فلترة على أساس التوافق**: أسئلة مبنية على معايير دينية وأسرية لترشيح التوافق بين الطرفين.
-- 🤝 **إشراف إداري كامل**: مراجعة الحسابات والتفاعلات لضمان جدية الأعضاء ومنع إساءة الاستخدام.
+<table>
+<tr>
+<td width="33%" valign="top">
 
-## 🛠️ Built With
+**🔒 ستر وخصوصية**
+لا صور مكشوفة ولا تواصل مباشر بدون موافقة، كل تفاعل يمر بإشراف.
 
-- **Python + Flask**: الخادم الخلفي وقاعدة البيانات
-- **SQLite**: قاعدة بيانات تُنشأ تلقائياً عند أول تشغيل
-- **React + Tailwind CSS**: الواجهة الأمامية
+</td>
+<td width="33%" valign="top">
 
-## 📁 Folder Structure
+**🕌 فلترة على أساس التوافق**
+أسئلة مبنية على معايير دينية وأسرية لترشيح التوافق بين الطرفين.
 
-```
+</td>
+<td width="33%" valign="top">
+
+**🤝 إشراف إداري كامل**
+مراجعة الحسابات والتفاعلات لضمان جدية الأعضاء ومنع إساءة الاستخدام.
+
+</td>
+</tr>
+</table>
+
+## 🛠️ التقنيات
+
+| الجزء | التقنيات |
+|:---|:---|
+| **Backend** | Flask · Flask-SQLAlchemy · Flask-CORS · SQLite |
+| **Frontend** | React 18 · React Router · Vite · Tailwind CSS |
+
+## 📁 هيكل المشروع
+
+```text
 wefaq/
+├── requirements.txt
+│
 ├── backend/
-│   ├── routes/            # auth, user, admin, notifications
-│   ├── data/               # أسئلة، مدير عام، مستخدمون تجريبيون (JSON)
-│   ├── instance/           # قاعدة بيانات SQLite (تُنشأ تلقائياً)
-│   ├── app.py              # نقطة تشغيل الخادم
-│   ├── config.py           # إعدادات التطبيق
-│   ├── models.py           # جداول قاعدة البيانات
-│   └── utils.py            # دوال مساعدة
+│   ├── app.py                    نقطة تشغيل الخادم وتهيئة قاعدة البيانات
+│   ├── config.py                 إعدادات الاتصال والمسارات
+│   ├── models.py                 جداول: users, admins, answers, notes, notifications
+│   ├── utils.py                  تشفير، توليد أكواد، مزامنة JSON
+│   ├── data/                     admins.json · questions.json · users.json
+│   ├── instance/wefaq.db         قاعدة SQLite (تُنشأ تلقائياً)
+│   └── routes/                   auth · user · admin · notifications
+│
 └── frontend/
+    ├── test_phase3.mjs                 اختبار تدفق كامل
+    ├── test_onboarding_and_admin.mjs    اختبار أول دخول + مزامنة الإداريين
     └── src/
-        ├── config.json      # رابط الـ API والحقول الديناميكية
-        ├── components/      # مكونات قابلة لإعادة الاستخدام
-        ├── pages/           # صفحات التطبيق
-        ├── services/        # الاتصال بالـ API
-        └── App.jsx          # ربط المسارات
+        ├── config.json           رابط API + حقول النموذج + خطوات التسجيل
+        ├── components/           Card, Button, ProgressSteps ...
+        ├── pages/                الرئيسية، الدخول، إكمال الطلب، اللوحات
+        └── services/             استدعاءات API
 ```
 
-## 🚀 Getting Started
+## 🚀 التشغيل
 
-**1. جهّز بيئة Python للخادم:**
+### 1. الخادم الخلفي
+
 ```bash
 cd backend
-python3 -m venv venv
-source venv/bin/activate   # على ويندوز: venv\Scripts\activate
-```
-
-**2. ثبّت المكتبات:**
-```bash
-pip install flask flask-sqlalchemy
-```
-
-**3. شغّل الخادم:**
-```bash
+python -m venv venv
+source venv/bin/activate      # ويندوز: venv\Scripts\activate
+pip install -r ../requirements.txt
 python app.py
 ```
-يعمل على `http://localhost:5000` وينشئ قاعدة البيانات وحساب المدير العام تلقائياً (`super@wefaq.com` / `SuperAdmin@2026`).
 
-**4. ثبّت وشغّل الواجهة الأمامية** (في نافذة طرفية جديدة):
+📍 يعمل على `http://localhost:5000` وينشئ قاعدة البيانات وحساب المدير العام تلقائياً.
+
+### 2. الواجهة الأمامية
+
+> نافذة طرفية جديدة، مع بقاء الخادم يعمل
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-تفتح على `http://localhost:5173` — تأكد أن الخادم يعمل أولاً.
 
-## 🧪 الاختبارات
-
-```bash
-python backend/test_phase1.py     # قاعدة البيانات والملفات
-python backend/test_phase2.py     # المصادقة وواجهات API
-node frontend/test_phase3.mjs     # تدفق البيانات الكامل (يتطلب تشغيل الخادم)
-```
-
-## 🛡️ ملاحظة أمنية
-
-كلمة مرور المدير العام والمفتاح السري في `config.py` **للتطوير فقط** — غيّرهما قبل أي نشر فعلي.
+📍 تفتح على `http://localhost:5173`
