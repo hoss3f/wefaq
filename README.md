@@ -1,53 +1,57 @@
-# وِفاق (WEFAQ)
+<div align="center">
 
-منصة تعارف حلال بستر واحترام. المشروع مبني من جزأين منفصلين: خادم خلفي (backend) بلغة Python وFlask، وواجهة أمامية (frontend) بReact وTailwind CSS.
+# وِفاق · WEFAQ
 
-## هيكل المشروع
+**منصة تعارف حلال، بستر واحترام**
+
+`Python` · `Flask` · `React` · `Tailwind CSS`
+
+</div>
+
+---
+
+## 🧩 البنية
+
+مشروعان منفصلان: **خادم** (Flask) و**واجهة** (React).
 
 ```
 wefaq/
-  backend/
-    data/            ملفات JSON (الأسئلة، المدير العام، مستخدمون تجريبيون)
-    instance/         قاعدة بيانات SQLite (تُنشأ تلقائياً عند التشغيل)
-    routes/           مسارات API (المصادقة، المستخدم، الإداري، الإشعارات)
-    app.py            نقطة تشغيل الخادم
-    config.py         إعدادات التطبيق
-    models.py         جداول قاعدة البيانات
-    utils.py          دوال مساعدة
-    test_phase1.py    اختبار البنية التحتية وقاعدة البيانات
-    test_phase2.py    اختبار المصادقة وواجهات API
-  frontend/
-    src/
-      config.json     رابط الـ API وحقول النماذج الديناميكية
-      components/      مكونات واجهة قابلة لإعادة الاستخدام
-      pages/           صفحات التطبيق
-      services/        دوال الاتصال بالـ API
-      App.jsx          ربط المسارات
-    test_phase3.mjs    اختبار تدفق البيانات الكامل بين الواجهة والخادم
+├── backend/            Flask API + SQLite
+│   ├── routes/          مصادقة · مستخدم · إدارة · إشعارات
+│   ├── data/             ملفات JSON (أسئلة، مدير عام، مستخدمون تجريبيون)
+│   ├── app.py            نقطة التشغيل
+│   └── models.py         جداول قاعدة البيانات
+│
+└── frontend/           React + Tailwind
+    └── src/
+        ├── pages/         الصفحات
+        ├── components/    مكونات قابلة لإعادة الاستخدام
+        └── services/      الاتصال بالـ API
 ```
 
-## تشغيل الخادم الخلفي
+---
+
+## ⚙️ التشغيل
+
+### 1) الخادم الخلفي
 
 ```bash
 cd backend
 python -m venv venv
-# macOS/Linux
-source venv/bin/activate
-# PowerShell على ويندوز
-.\venv\Scripts\Activate.ps1
-# أو Command Prompt على ويندوز
-venv\Scripts\activate.bat
+source venv/bin/activate       # macOS/Linux
+# .\venv\Scripts\Activate.ps1  # PowerShell
 pip install flask flask-sqlalchemy
 python app.py
 ```
 
-يعمل الخادم على `http://localhost:5000`، وينشئ قاعدة البيانات وحساب المدير العام تلقائياً عند أول تشغيل.
+→ يعمل على `http://localhost:5000` وينشئ قاعدة البيانات والمدير العام تلقائياً.
 
-بيانات دخول المدير العام الافتراضية:
-- البريد: `super@wefaq.com`
-- كلمة المرور: `SuperAdmin@2026`
+| الحقل | القيمة |
+|---|---|
+| البريد | `super@wefaq.com` |
+| كلمة المرور | `SuperAdmin@2026` |
 
-## تشغيل الواجهة الأمامية
+### 2) الواجهة الأمامية
 
 ```bash
 cd frontend
@@ -55,21 +59,20 @@ npm install
 npm run dev
 ```
 
-تفتح الواجهة على `http://localhost:5173`. تأكد من تشغيل الخادم الخلفي أولاً على المنفذ 5000.
+→ تعمل على `http://localhost:5173` (شغّل الخادم أولاً).
 
-## تشغيل الاختبارات
+---
 
-```bash
-# اختبار قاعدة البيانات والملفات
-cd backend && python test_phase1.py
+## ✅ الاختبارات
 
-# اختبار المصادقة وواجهات API
-cd backend && python test_phase2.py
+| الأمر | الغرض |
+|---|---|
+| `cd backend && python test_phase1.py` | قاعدة البيانات والملفات |
+| `cd backend && python test_phase2.py` | المصادقة وواجهات API |
+| `cd frontend && node test_phase3.mjs` | تدفق البيانات الكامل (يتطلب تشغيل الخادم) |
 
-# اختبار تدفق البيانات الكامل (يتطلب تشغيل الخادم على المنفذ 5000)
-cd frontend && node test_phase3.mjs
-```
+---
 
-## ملاحظة أمنية
+## 🔐 أمان
 
-كلمة مرور المدير العام وحساسة المفتاح السري في `config.py` معدّة للتطوير فقط. يجب تغييرهما قبل أي نشر فعلي للمشروع.
+> إعدادات `config.py` (كلمة مرور المدير العام، المفتاح السري) للتطوير فقط — **غيّرها قبل أي نشر فعلي**.
