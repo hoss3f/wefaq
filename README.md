@@ -12,7 +12,7 @@
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-Styling-06B6D4?logo=tailwindcss&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Database-07405E?logo=sqlite&logoColor=white)
 
-[نبذة](#-نبذة) · [المميزات](#-المميزات) · [التقنيات](#️-التقنيات) · [الهيكل](#-هيكل-المشروع) · [التشغيل](#-التشغيل) · [الدخول](#-الدخول-الافتراضي) · [الاختبارات](#-الاختبارات)
+[نبذة](#-نبذة) · [المميزات](#-المميزات) · [التقنيات](#️-التقنيات) · [الهيكل](#-هيكل-المشروع) · [التشغيل](#-التشغيل) · 
 
 </div>
 
