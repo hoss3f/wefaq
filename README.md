@@ -2,107 +2,93 @@
 
 # 🕌 وِفاق · WEFAQ
 
-### منصة تعارف حلال، بستر واحترام
+### Halal Matchmaking Platform
 
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-Backend-000000?style=flat-square&logo=flask&logoColor=white)
-![React](https://img.shields.io/badge/React-Frontend-61DAFB?style=flat-square&logo=react&logoColor=black)
-![Tailwind](https://img.shields.io/badge/TailwindCSS-Styling-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-Database-07405E?style=flat-square&logo=sqlite&logoColor=white)
+منصة تعارف حلال، بستر واحترام
+
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-Backend-000000?logo=flask&logoColor=white)
+![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)
+![Tailwind](https://img.shields.io/badge/TailwindCSS-Styling-06B6D4?logo=tailwindcss&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Database-07405E?logo=sqlite&logoColor=white)
 
 </div>
 
 ---
 
-## ✨ لماذا وِفاق؟
+## About
 
-| 🔒 خصوصية وستر | 🕌 ضوابط شرعية | 🤝 جدية في التعارف |
-|:---:|:---:|:---:|
-| لا صور مكشوفة، لا دردشة مفتوحة عشوائية — كل تواصل بإشراف وموافقة | أسئلة وفلاتر مبنية على معايير التوافق الأسري والديني | إشراف إداري كامل على الحسابات والتفاعلات لضمان جدية الأعضاء |
+وِفاق تطبيق ويب يساعد الشباب والشابات على التعارف الجاد بقصد الزواج، ضمن ضوابط الستر والاحترام. المستخدم يُنشئ حساباً، يجيب على أسئلة التوافق، ثم يتصفح ويتواصل تحت إشراف إداري كامل — بدون صور مكشوفة ولا دردشة عشوائية مفتوحة.
 
----
+## ✨ What It Does
 
-## 🗂️ هيكل المشروع
+- 🔒 **ستر وخصوصية**: لا صور مكشوفة ولا تواصل مباشر بدون موافقة، كل تفاعل يمر بإشراف.
+- 🕌 **فلترة على أساس التوافق**: أسئلة مبنية على معايير دينية وأسرية لترشيح التوافق بين الطرفين.
+- 🤝 **إشراف إداري كامل**: مراجعة الحسابات والتفاعلات لضمان جدية الأعضاء ومنع إساءة الاستخدام.
 
-\`\`\`text
+## 🛠️ Built With
+
+- **Python + Flask**: الخادم الخلفي وقاعدة البيانات
+- **SQLite**: قاعدة بيانات تُنشأ تلقائياً عند أول تشغيل
+- **React + Tailwind CSS**: الواجهة الأمامية
+
+## 📁 Folder Structure
+
+```
 wefaq/
-│
-├── 🐍 backend/                  Flask API
-│   ├── routes/                   auth · user · admin · notifications
-│   ├── data/                     أسئلة، مدير عام، مستخدمون تجريبيون (JSON)
-│   ├── instance/                 قاعدة بيانات SQLite (تُنشأ تلقائياً)
-│   ├── app.py                    نقطة تشغيل الخادم
-│   ├── config.py                 إعدادات التطبيق
-│   ├── models.py                 جداول قاعدة البيانات
-│   ├── utils.py                  دوال مساعدة
-│   ├── test_phase1.py            🧪 اختبار البنية التحتية
-│   └── test_phase2.py            🧪 اختبار المصادقة وواجهات API
-│
-└── ⚛️ frontend/                 React + Tailwind
-    ├── src/
-    │   ├── config.json            رابط الـ API والحقول الديناميكية
-    │   ├── components/            مكونات قابلة لإعادة الاستخدام
-    │   ├── pages/                 صفحات التطبيق
-    │   ├── services/              الاتصال بالـ API
-    │   └── App.jsx                ربط المسارات
-    └── test_phase3.mjs           🧪 اختبار تدفق البيانات الكامل
-\`\`\`
+├── backend/
+│   ├── routes/            # auth, user, admin, notifications
+│   ├── data/               # أسئلة، مدير عام، مستخدمون تجريبيون (JSON)
+│   ├── instance/           # قاعدة بيانات SQLite (تُنشأ تلقائياً)
+│   ├── app.py              # نقطة تشغيل الخادم
+│   ├── config.py           # إعدادات التطبيق
+│   ├── models.py           # جداول قاعدة البيانات
+│   └── utils.py            # دوال مساعدة
+└── frontend/
+    └── src/
+        ├── config.json      # رابط الـ API والحقول الديناميكية
+        ├── components/      # مكونات قابلة لإعادة الاستخدام
+        ├── pages/           # صفحات التطبيق
+        ├── services/        # الاتصال بالـ API
+        └── App.jsx          # ربط المسارات
+```
 
----
+## 🚀 Getting Started
 
-## ⚙️ التشغيل
-
-### 1️⃣ الخادم الخلفي
-
-\`\`\`bash
+**1. جهّز بيئة Python للخادم:**
+```bash
 cd backend
-python -m venv venv
-source venv/bin/activate       # macOS/Linux
-# .\venv\Scripts\Activate.ps1  # PowerShell (ويندوز)
+python3 -m venv venv
+source venv/bin/activate   # على ويندوز: venv\Scripts\activate
+```
+
+**2. ثبّت المكتبات:**
+```bash
 pip install flask flask-sqlalchemy
+```
+
+**3. شغّل الخادم:**
+```bash
 python app.py
-\`\`\`
+```
+يعمل على `http://localhost:5000` وينشئ قاعدة البيانات وحساب المدير العام تلقائياً (`super@wefaq.com` / `SuperAdmin@2026`).
 
-📍 يعمل على \`http://localhost:5000\` وينشئ قاعدة البيانات وحساب المدير العام تلقائياً عند أول تشغيل.
-
-<div align="center">
-
-| 👤 الحقل | القيمة |
-|:---:|:---:|
-| البريد | \`super@wefaq.com\` |
-| كلمة المرور | \`SuperAdmin@2026\` |
-
-</div>
-
-### 2️⃣ الواجهة الأمامية
-
-\`\`\`bash
+**4. ثبّت وشغّل الواجهة الأمامية** (في نافذة طرفية جديدة):
+```bash
 cd frontend
 npm install
 npm run dev
-\`\`\`
-
-📍 تعمل على \`http://localhost:5173\` — تأكد من تشغيل الخادم أولاً.
-
----
+```
+تفتح على `http://localhost:5173` — تأكد أن الخادم يعمل أولاً.
 
 ## 🧪 الاختبارات
 
-| الأمر | الغرض |
-|---|---|
-| \`python backend/test_phase1.py\` | 🗄️ قاعدة البيانات والملفات |
-| \`python backend/test_phase2.py\` | 🔐 المصادقة وواجهات API |
-| \`node frontend/test_phase3.mjs\` | 🔄 تدفق البيانات الكامل (يتطلب تشغيل الخادم) |
-
----
+```bash
+python backend/test_phase1.py     # قاعدة البيانات والملفات
+python backend/test_phase2.py     # المصادقة وواجهات API
+node frontend/test_phase3.mjs     # تدفق البيانات الكامل (يتطلب تشغيل الخادم)
+```
 
 ## 🛡️ ملاحظة أمنية
 
-> ⚠️ كلمة مرور المدير العام والمفتاح السري في \`config.py\` **للتطوير فقط** — غيّرهما قبل أي نشر فعلي.
-
-<div align="center">
-
----
-صُنع بـ 💚 لتعارف أنقى
-
-</div>
+كلمة مرور المدير العام والمفتاح السري في `config.py` **للتطوير فقط** — غيّرهما قبل أي نشر فعلي.
