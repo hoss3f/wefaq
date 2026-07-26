@@ -1,0 +1,27 @@
+{
+  "appName": "وِفاق",
+  "appTagline": "التعارف بستر واحترام",
+  "apiBaseUrl": "http://localhost:5000/api",
+  "registrationSteps": [
+    { "key": "personal", "label": "البيانات الشخصية" },
+    { "key": "mcq", "label": "أسئلة الاختيار" },
+    { "key": "open", "label": "أسئلة مفتوحة" },
+    { "key": "review", "label": "المراجعة والإرسال" }
+  ],
+  "personalFields": [
+    { "name": "full_name", "label": "الاسم الكامل", "type": "text", "required": true, "placeholder": "متقدم جديد" },
+    { "name": "gender", "label": "الجنس", "type": "select", "options": ["ذكر", "أنثى"], "required": true },
+    { "name": "birthday", "label": "تاريخ الميلاد", "type": "date", "required": true },
+    { "name": "phone", "label": "رقم الجوال", "type": "tel", "required": true },
+    { "name": "email", "label": "البريد الإلكتروني", "type": "email", "required": true },
+    { "name": "country", "label": "الدولة", "type": "text", "required": true },
+    { "name": "guardian_relation", "label": "صلة القرابة بولي الأمر", "type": "text", "required": false },
+    { "name": "guardian_phone", "label": "رقم جوال ولي الأمر", "type": "tel", "required": false }
+  ],
+  "statusLabels": {
+    "pending": "قيد الانتظار",
+    "reviewing": "قيد المراجعة",
+    "approved": "مقبول",
+    "rejected": "مرفوض"
+  }
+}

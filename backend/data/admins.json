@@ -1,0 +1,18 @@
+{
+  "super_admin": {
+    "full_name": "المدير العام",
+    "phone": "0500000000",
+    "email": "super@wefaq.com",
+    "city": "الدوحة",
+    "password": "SuperAdmin@2026"
+  },
+  "admins": [
+    {
+      "full_name": "أحمد",
+      "phone": "775",
+      "email": "ar33800@gmail.com",
+      "city": "سعوديه",
+      "password": "ali"
+    }
+  ]
+}
