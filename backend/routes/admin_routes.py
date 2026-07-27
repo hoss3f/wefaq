@@ -229,20 +229,28 @@ def delete_admin(target_id):
 @admin_bp.route('/users/generate-code', methods=['POST'])
 def generate_user_code_route():
     """توليد كود مستخدم جديد، مع اسم اختياري (الافتراضي: متقدم جديد)"""
+    from sqlalchemy.exc import IntegrityError
     from config import DEFAULT_USER_NAME
     from utils import generate_user_code, sync_user_to_json
 
     data = request.get_json() or {}
     full_name = (data.get('full_name') or '').strip() or DEFAULT_USER_NAME
 
-    new_user = User(
-        code=generate_user_code(User),
-        full_name=full_name,
-        status='pending'
-    )
-    db.session.add(new_user)
-    db.session.commit()
-    sync_user_to_json(new_user)
+    try:
+        new_user = User(
+            code=generate_user_code(User),
+            full_name=full_name,
+            status='pending'
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        sync_user_to_json(new_user)
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': 'تعذر توليد كود فريد، حاول مرة أخرى'
+        }), 409
 
     return jsonify({
         'success': True,

@@ -47,9 +47,24 @@ def verify_password(password_hash, raw_password):
 
 
 def generate_user_code(user_model):
-    """توليد كود مستخدم جديد بالاعتماد على عدد المستخدمين في قاعدة البيانات"""
-    count = user_model.query.count()
-    return f"USER{count + 1:03d}"
+    """
+    توليد كود مستخدم فريد USER###.
+    يعتمد على أعلى رقم موجود وليس على عدد الصفوف، لتجنب التعارض بعد حذف مستخدمين.
+    """
+    max_num = 0
+    for (code,) in user_model.query.with_entities(user_model.code).all():
+        if not code or not code.startswith('USER'):
+            continue
+        suffix = code[4:]
+        if suffix.isdigit():
+            max_num = max(max_num, int(suffix))
+
+    next_num = max_num + 1
+    candidate = f'USER{next_num:03d}'
+    while user_model.query.filter_by(code=candidate).first():
+        next_num += 1
+        candidate = f'USER{next_num:03d}'
+    return candidate
 
 
 def is_placeholder_name(name):

@@ -16,7 +16,10 @@ async function request(path, { method = 'GET', body } = {}) {
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    throw new Error(data.message || 'حدث خطأ في الاتصال بالخادم')
+    const fallback = response.status >= 500
+      ? 'حدث خطأ في الخادم، تأكد من تشغيله وحاول مرة أخرى'
+      : 'حدث خطأ في الاتصال بالخادم'
+    throw new Error(data.message || fallback)
   }
 
   return data
