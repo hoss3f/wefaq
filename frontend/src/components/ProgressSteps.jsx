@@ -40,9 +40,6 @@ export default function ProgressSteps({ steps, currentIndex }) {
           )
         })}
       </ol>
-      <p className="text-center text-xs text-muted mt-2">
-        الخطوة {currentIndex + 1} من {steps.length}
-      </p>
     </div>
   )
 }

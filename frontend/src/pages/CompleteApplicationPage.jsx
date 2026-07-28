@@ -10,10 +10,66 @@ import { getQuestions, getUser, completeApplication } from '../services/userServ
 
 const STEPS = config.registrationSteps
 const PLACEHOLDER_NAME = 'متقدم جديد'
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function displayName(name) {
   if (!name || name.trim() === PLACEHOLDER_NAME) return ''
   return name
+}
+
+function sanitizePhone(value) {
+  return value?.toString().replace(/\D/g, '') || ''
+}
+
+function isValidEmail(value) {
+  return EMAIL_PATTERN.test(value?.toString().trim() || '')
+}
+
+function isDateInFuture(value) {
+  if (!value) return false
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return date > today
+}
+
+function validatePersonalFields(personal, countryOptions = []) {
+  const errors = {}
+
+  if (!personal.full_name?.trim() || personal.full_name.trim() === PLACEHOLDER_NAME) {
+    errors.full_name = 'الرجاء إدخال اسمك الكامل'
+  }
+
+  if (!personal.birthday) {
+    errors.birthday = 'الرجاء إدخال تاريخ الميلاد'
+  } else if (isDateInFuture(personal.birthday)) {
+    errors.birthday = 'تاريخ الميلاد لا يمكن أن يكون في المستقبل'
+  }
+
+  if (!personal.phone) {
+    errors.phone = 'الرجاء إدخال رقم الجوال'
+  } else if (!/^[0-9]+$/.test(personal.phone)) {
+    errors.phone = 'رقم الجوال يجب أن يحتوي على أرقام فقط'
+  }
+
+  if (!personal.email) {
+    errors.email = 'الرجاء إدخال البريد الإلكتروني'
+  } else if (!isValidEmail(personal.email)) {
+    errors.email = 'البريد الإلكتروني غير صالح ويجب أن يحتوي على @'
+  }
+
+  if (!personal.country) {
+    errors.country = 'الرجاء اختيار الدولة'
+  } else if (countryOptions.length && !countryOptions.includes(personal.country)) {
+    errors.country = 'رجاء اختيار دولة صحيحة من القائمة'
+  }
+
+  if (personal.guardian_phone && !/^[0-9]+$/.test(personal.guardian_phone)) {
+    errors.guardian_phone = 'رقم جوال ولي الأمر يجب أن يحتوي على أرقام فقط'
+  }
+
+  return errors
 }
 
 export default function CompleteApplicationPage() {
@@ -26,6 +82,7 @@ export default function CompleteApplicationPage() {
   const [mcqAnswers, setMcqAnswers] = useState({})
   const [openAnswers, setOpenAnswers] = useState({})
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [booting, setBooting] = useState(true)
 
@@ -81,20 +138,25 @@ export default function CompleteApplicationPage() {
   function goNext() {
     setError('')
     if (stepIndex === 0) {
-      const missing = config.personalFields.filter((f) => f.required && !personal[f.name]?.toString().trim())
-      if (missing.length > 0) {
-        setError('الرجاء تعبئة جميع الحقول المطلوبة')
+      const errors = validatePersonalFields(personal, config.personalFields.find((f) => f.name === 'country')?.options || [])
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors)
+        setError('الرجاء تصحيح الحقول الموضحة أعلاه')
         return
       }
-      if (!personal.full_name || personal.full_name.trim() === PLACEHOLDER_NAME) {
-        setError('الرجاء إدخال اسمك الكامل')
-        return
-      }
+      setFieldErrors({})
     }
     if (stepIndex === 1) {
       const unanswered = (questions?.mcq || []).some((q) => !mcqAnswers[`q${q.id}`])
       if (unanswered) {
         setError('الرجاء الإجابة على جميع أسئلة الاختيار')
+        return
+      }
+    }
+    if (stepIndex === 2) {
+      const unansweredOpen = (questions?.open || []).some((_, idx) => !openAnswers[`q${idx + 1}`]?.toString().trim())
+      if (unansweredOpen) {
+        setError('الرجاء الإجابة على جميع الأسئلة ')
         return
       }
     }
@@ -109,6 +171,14 @@ export default function CompleteApplicationPage() {
   async function handleFinalSubmit() {
     setLoading(true)
     setError('')
+
+    const unansweredOpen = (questions?.open || []).some((_, idx) => !openAnswers[`q${idx + 1}`]?.toString().trim())
+    if (unansweredOpen) {
+      setError('الرجاء الإجابة على جميع الأسئلة ')
+      setLoading(false)
+      return
+    }
+
     try {
       const res = await completeApplication(userId, personal, mcqAnswers, openAnswers)
       localStorage.setItem('wefaq_user', JSON.stringify({
@@ -153,6 +223,7 @@ export default function CompleteApplicationPage() {
                 field={field}
                 value={personal[field.name]}
                 onChange={handlePersonalChange}
+                error={fieldErrors[field.name]}
               />
             ))}
           </div>

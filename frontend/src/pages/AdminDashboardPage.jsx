@@ -227,6 +227,7 @@ export default function AdminDashboardPage() {
 
   function handleLogout() {
     localStorage.removeItem('wefaq_admin')
+    localStorage.removeItem('wefaq_admin_credentials')
     navigate('/admin/login')
   }
 

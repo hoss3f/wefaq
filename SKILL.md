@@ -1,5 +1,5 @@
 ---
-name: wefaq-project-library
+name: wefaq-project
 description: >-
   Complete technical knowledge base for the WEFAQ (وِفاق) matchmaking platform.
   Use when working on this repo: backend Flask APIs, React frontend, database
@@ -7,7 +7,7 @@ description: >-
   Gives an AI full awareness of every file, its role, and implementation logic.
 ---
 
-# WEFAQ (وِفاق) — Full Project Library for AI Assistants
+# WEFAQ (وِفاق) — Full Project for AI Assistants
 
 This document is the **authoritative technical map** of the WEFAQ codebase.
 If you are an AI (ChatGPT, Cursor, Claude, etc.), treat this as your system
@@ -126,7 +126,7 @@ Relationships use `cascade='all, delete-orphan'` so deleting a user removes answ
 
 ---
 
-## 5. Backend file library
+## 5. Backend file 
 
 ### `backend/app.py`
 - Factory `create_app()`: config, CORS (`/api/*`), `db.init_app`, `register_routes`, `db.create_all()`, `seed_super_admin()`.
@@ -209,7 +209,7 @@ No admin login `code` field.
 
 ---
 
-## 6. Frontend file library
+## 6. Frontend file 
 
 ### Entry & config
 | File | Role |
