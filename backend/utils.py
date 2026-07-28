@@ -1,6 +1,7 @@
 # backend/utils.py
 import json
 import os
+import random
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import DATA_DIR, DEFAULT_USER_NAME
 
@@ -46,26 +47,21 @@ def verify_password(password_hash, raw_password):
     return check_password_hash(password_hash, raw_password)
 
 
+import random
+
 def generate_user_code(user_model):
     """
-    توليد كود مستخدم فريد USER###.
-    يعتمد على أعلى رقم موجود وليس على عدد الصفوف، لتجنب التعارض بعد حذف مستخدمين.
+    توليد كود مستخدم مكوّن من 4 أرقام عشوائية بالكامل، بدون خانة تحقق.
+    يتم التأكد من عدم تكرار الكود في قاعدة البيانات قبل اعتماده.
     """
-    max_num = 0
-    for (code,) in user_model.query.with_entities(user_model.code).all():
-        if not code or not code.startswith('USER'):
-            continue
-        suffix = code[4:]
-        if suffix.isdigit():
-            max_num = max(max_num, int(suffix))
+    def build_code():
+        digits = f'{random.randint(0, 9999):04d}'
+        return f'USER{digits}'
 
-    next_num = max_num + 1
-    candidate = f'USER{next_num:03d}'
+    candidate = build_code()
     while user_model.query.filter_by(code=candidate).first():
-        next_num += 1
-        candidate = f'USER{next_num:03d}'
+        candidate = build_code()
     return candidate
-
 
 def is_placeholder_name(name):
     """هل الاسم هو الاسم الافتراضي المؤقت؟"""
@@ -77,7 +73,7 @@ def user_needs_onboarding(user, mcq_answer=None):
     المستخدم يحتاج إكمال الطلب إذا نقصت بياناته الأساسية
     أو لم يُجب على الأسئلة بعد (حالة الكود المُولَّد لأول مرة).
     """
-    from models import MCQAnswer
+    from models import MCQAnswer, OpenAnswer
 
     name_ok = bool(user.full_name) and not is_placeholder_name(user.full_name)
     profile_ok = all([
@@ -94,7 +90,13 @@ def user_needs_onboarding(user, mcq_answer=None):
     mcq = mcq_answer
     if mcq is None:
         mcq = MCQAnswer.query.filter_by(user_id=user.id).first()
-    return not mcq or not mcq.q1
+
+    open_answer = OpenAnswer.query.filter_by(user_id=user.id).first()
+    open_ok = bool(open_answer and all(
+        str(getattr(open_answer, f'q{i}') or '').strip() for i in range(1, 5)
+    ))
+
+    return not mcq or not mcq.q1 or not open_ok
 
 
 def sync_user_to_json(user):

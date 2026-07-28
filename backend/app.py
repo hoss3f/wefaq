@@ -1,7 +1,13 @@
 # backend/app.py
 from flask import Flask
 from flask_cors import CORS
-from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS, SECRET_KEY
+from config import (
+    SQLALCHEMY_DATABASE_URI,
+    SQLALCHEMY_TRACK_MODIFICATIONS,
+    SECRET_KEY,
+    CORS_ORIGINS,
+    TESTING,
+)
 from models import db, Admin
 from utils import load_questions, load_admins, load_users, hash_password
 from routes import register_routes
@@ -14,8 +20,10 @@ def create_app():
     flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = SQLALCHEMY_TRACK_MODIFICATIONS
     flask_app.config['SECRET_KEY'] = SECRET_KEY
 
-    # السماح لطلبات الواجهة الأمامية (Vite على المنفذ 5173) بالوصول إلى API
-    CORS(flask_app, resources={r"/api/*": {"origins": "*"}})
+    cors_kwargs = {"origins": CORS_ORIGINS}
+    if CORS_ORIGINS != '*':
+        cors_kwargs["supports_credentials"] = True
+    CORS(flask_app, resources={r"/api/*": cors_kwargs})
 
     db.init_app(flask_app)
     register_routes(flask_app)
@@ -83,4 +91,4 @@ app = create_app()
 if __name__ == '__main__':
     test_json_loading()
     print("\nالمرحلة الثانية جاهزة للاختبار.")
-    app.run(debug=True)
+    app.run(debug=not TESTING)

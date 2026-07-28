@@ -2,6 +2,13 @@
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from models import db, User, MCQAnswer, OpenAnswer, AdminNote
+from security import (
+    admin_required,
+    can_read_user,
+    require_user_self,
+    sanitize_text,
+    validate_email,
+)
 from utils import (
     load_questions,
     generate_user_code,
@@ -39,31 +46,35 @@ def _apply_personal_data(user, data):
     if not birthday:
         return False, {'success': False, 'message': 'صيغة تاريخ الميلاد غير صحيحة'}, 400
 
-    user.full_name = data['full_name'].strip()
-    user.phone = data['phone']
-    user.email = data['email']
+    email = validate_email(data.get('email'))
+    if not email:
+        return False, {'success': False, 'message': 'البريد الإلكتروني غير صحيح'}, 400
+
+    user.full_name = sanitize_text(data['full_name'], 100)
+    user.phone = sanitize_text(data['phone'], 20)
+    user.email = email
     user.birthday = birthday
-    user.gender = data['gender']
-    user.country = data['country']
-    user.guardian_phone = data.get('guardian_phone', '') or ''
-    user.guardian_relation = data.get('guardian_relation', '') or ''
+    user.gender = sanitize_text(data['gender'], 10)
+    user.country = sanitize_text(data['country'], 50)
+    user.guardian_phone = sanitize_text(data.get('guardian_phone', ''), 20)
+    user.guardian_relation = sanitize_text(data.get('guardian_relation', ''), 50)
     if 'photo_path' in data:
-        user.photo_path = data.get('photo_path') or ''
+        user.photo_path = sanitize_text(data.get('photo_path') or '', 200)
     return True, None, None
 
 
 def _upsert_answers(user_id, mcq_data, open_data):
     mcq_answer = MCQAnswer.query.filter_by(user_id=user_id).first() or MCQAnswer(user_id=user_id)
-    mcq_answer.q1 = mcq_data.get('q1', mcq_answer.q1 if mcq_answer.id else None)
-    mcq_answer.q2 = mcq_data.get('q2', mcq_answer.q2 if mcq_answer.id else None)
-    mcq_answer.q3 = mcq_data.get('q3', mcq_answer.q3 if mcq_answer.id else None)
-    mcq_answer.q4 = mcq_data.get('q4', mcq_answer.q4 if mcq_answer.id else None)
+    mcq_answer.q1 = sanitize_text(mcq_data.get('q1', mcq_answer.q1 if mcq_answer.id else None), 50)
+    mcq_answer.q2 = sanitize_text(mcq_data.get('q2', mcq_answer.q2 if mcq_answer.id else None), 50)
+    mcq_answer.q3 = sanitize_text(mcq_data.get('q3', mcq_answer.q3 if mcq_answer.id else None), 50)
+    mcq_answer.q4 = sanitize_text(mcq_data.get('q4', mcq_answer.q4 if mcq_answer.id else None), 50)
 
     open_answer = OpenAnswer.query.filter_by(user_id=user_id).first() or OpenAnswer(user_id=user_id)
-    open_answer.q1 = open_data.get('q1', open_answer.q1 if open_answer.id else None)
-    open_answer.q2 = open_data.get('q2', open_answer.q2 if open_answer.id else None)
-    open_answer.q3 = open_data.get('q3', open_answer.q3 if open_answer.id else None)
-    open_answer.q4 = open_data.get('q4', open_answer.q4 if open_answer.id else None)
+    open_answer.q1 = sanitize_text(open_data.get('q1', open_answer.q1 if open_answer.id else None), 5000)
+    open_answer.q2 = sanitize_text(open_data.get('q2', open_answer.q2 if open_answer.id else None), 5000)
+    open_answer.q3 = sanitize_text(open_data.get('q3', open_answer.q3 if open_answer.id else None), 5000)
+    open_answer.q4 = sanitize_text(open_data.get('q4', open_answer.q4 if open_answer.id else None), 5000)
 
     db.session.add(mcq_answer)
     db.session.add(open_answer)
@@ -99,8 +110,9 @@ def get_questions():
 
 
 @user_bp.route('/users/register', methods=['POST'])
+@admin_required
 def register_user():
-    """تسجيل مستخدم جديد وإصدار كود خاص به"""
+    """تسجيل مستخدم جديد — يتطلب مصادقة إدارية"""
     data = request.get_json() or {}
 
     missing = [field for field in REQUIRED_FIELDS if not data.get(field)]
@@ -118,17 +130,21 @@ def register_user():
     if not birthday:
         return jsonify({'success': False, 'message': 'صيغة تاريخ الميلاد غير صحيحة'}), 400
 
+    email = validate_email(data.get('email'))
+    if not email:
+        return jsonify({'success': False, 'message': 'البريد الإلكتروني غير صحيح'}), 400
+
     new_user = User(
         code=generate_user_code(User),
-        full_name=data['full_name'].strip(),
-        phone=data['phone'],
-        email=data['email'],
+        full_name=sanitize_text(data['full_name'], 100),
+        phone=sanitize_text(data['phone'], 20),
+        email=email,
         birthday=birthday,
-        gender=data['gender'],
-        guardian_phone=data.get('guardian_phone', ''),
-        guardian_relation=data.get('guardian_relation', ''),
-        photo_path=data.get('photo_path', ''),
-        country=data['country'],
+        gender=sanitize_text(data['gender'], 10),
+        guardian_phone=sanitize_text(data.get('guardian_phone', ''), 20),
+        guardian_relation=sanitize_text(data.get('guardian_relation', ''), 50),
+        photo_path=sanitize_text(data.get('photo_path', ''), 200),
+        country=sanitize_text(data['country'], 50),
         status='pending'
     )
     db.session.add(new_user)
@@ -145,9 +161,9 @@ def register_user():
 @user_bp.route('/users/<int:user_id>/answers', methods=['POST'])
 def save_answers(user_id):
     """حفظ إجابات الأسئلة المغلقة والمفتوحة لمستخدم معيّن"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'message': 'المستخدم غير موجود'}), 404
+    user, err = require_user_self(user_id)
+    if err:
+        return err
 
     data = request.get_json() or {}
     mcq_data = data.get('mcq', {})
@@ -167,9 +183,9 @@ def complete_application(user_id):
     إكمال طلب مستخدم بالكود لأول مرة:
     حفظ البيانات الشخصية + الإجابات في طلب واحد ثم تحويل الحالة إلى قيد المراجعة.
     """
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'message': 'المستخدم غير موجود'}), 404
+    user, err = require_user_self(user_id)
+    if err:
+        return err
 
     data = request.get_json() or {}
     personal = data.get('personal') or data
@@ -182,6 +198,9 @@ def complete_application(user_id):
 
     if not all(mcq_data.get(f'q{i}') for i in range(1, 5)):
         return jsonify({'success': False, 'message': 'الرجاء إكمال أسئلة الاختيار جميعها'}), 400
+
+    if not all(str(open_data.get(f'q{i}') or '').strip() for i in range(1, 5)):
+        return jsonify({'success': False, 'message': 'الرجاء إكمال الأسئلة المفتوحة جميعها'}), 400
 
     _upsert_answers(user_id, mcq_data, open_data)
     user.status = 'reviewing'
@@ -207,9 +226,9 @@ def complete_application(user_id):
 @user_bp.route('/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):
     """إرجاع بيانات المستخدم مع إجاباته والملاحظات المرئية له"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'message': 'المستخدم غير موجود'}), 404
+    user, err = can_read_user(user_id)
+    if err:
+        return err
 
     mcq = MCQAnswer.query.filter_by(user_id=user_id).first()
     open_ans = OpenAnswer.query.filter_by(user_id=user_id).first()
@@ -243,9 +262,9 @@ def get_user(user_id):
 @user_bp.route('/users/<int:user_id>', methods=['PUT'])
 def update_user(user_id):
     """تحديث البيانات الشخصية للمستخدم"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'message': 'المستخدم غير موجود'}), 404
+    user, err = require_user_self(user_id)
+    if err:
+        return err
 
     data = request.get_json() or {}
 
@@ -254,7 +273,12 @@ def update_user(user_id):
             value = data[field]
             if field == 'full_name' and is_placeholder_name(value):
                 return jsonify({'success': False, 'message': 'الرجاء إدخال الاسم الكامل الحقيقي'}), 400
-            setattr(user, field, value)
+            if field == 'email':
+                value = validate_email(value)
+                if not value:
+                    return jsonify({'success': False, 'message': 'البريد الإلكتروني غير صحيح'}), 400
+            max_len = 100 if field == 'full_name' else 20 if 'phone' in field else 50
+            setattr(user, field, sanitize_text(value, max_len))
 
     if 'birthday' in data and data['birthday']:
         birthday = _parse_birthday(data['birthday'])
