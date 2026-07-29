@@ -77,7 +77,7 @@ export function listAdmins(adminId) {
   return apiGet(`/admin/admins?admin_id=${adminId}`)
 }
 
-/** حذف مستخدم (المدير العام فقط) */
+/** حذف مستخدم (أي إداري نشط) */
 export function deleteUser(userId, adminId) {
   return apiDelete(`/admin/users/${userId}`, { admin_id: adminId })
 }

@@ -194,8 +194,23 @@ def remove_admin_from_json(email):
     return data
 
 
+def _append_system_log(admin_id, user_id, action_type, details):
+    """كتابة سطر في ملف سجل النظام (إضافة إلى سجل قاعدة البيانات)"""
+    from datetime import datetime
+    from config import SYSTEM_LOG_FILE
+
+    timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    user_part = user_id if user_id is not None else '-'
+    line = (
+        f'[{timestamp}] admin_id={admin_id} user_id={user_part} '
+        f'action={action_type} details={details or ""}\n'
+    )
+    with open(SYSTEM_LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(line)
+
+
 def log_activity(admin_id, user_id, action_type, details):
-    """تسجيل إجراء إداري في سجل النشاط (يُكمِت مع الطلب الحالي)"""
+    """تسجيل إجراء إداري في قاعدة البيانات وملف سجل النظام (يُكمِت مع الطلب الحالي)"""
     from models import ActivityLog, db
 
     entry = ActivityLog(
@@ -205,4 +220,5 @@ def log_activity(admin_id, user_id, action_type, details):
         details=details or ''
     )
     db.session.add(entry)
+    _append_system_log(admin_id, user_id, action_type, details)
     return entry

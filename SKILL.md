@@ -100,10 +100,12 @@ Returned on login and `GET /users/<id>` as `needs_onboarding`.
 - `true` = shown on user dashboard via `visible_notes` in `GET /users/<id>`
 
 ### Super Admin powers
-- `GET /admin/admins?admin_id=`
-- `DELETE /admin/users/<id>` / `DELETE /admin/admins/<id>`
-- Cannot delete self or another super admin
+- `GET /admin/admins?admin_id=` (full admin list)
+- `DELETE /admin/admins/<id>` — cannot delete self or another super admin
 - Create admin via `POST /admin/create` (also syncs JSON)
+
+### Admin powers (any active admin)
+- `DELETE /admin/users/<id>` — delete applicant users
 
 ---
 
@@ -189,7 +191,7 @@ User has `assigned_admin` relationship to `Admin`.
 - `GET /logs?admin_id=&filter_admin_id=&user_id=&date_from=&date_to=`: activity log for any active admin; newest first; includes `admin_name`, `user_name`.
 - `POST /create`: create non-super admin (requires `admin_id` of super admin); `sync_admin_to_json`; logs `admin_created`.
 - `GET /admins?admin_id=`: active admin required; super admin gets full list; others get `{ id, full_name }` only (for assignment dropdown).
-- `DELETE /users/<id>`: Super Admin; logs `user_deleted` with code/name before delete; `remove_user_from_json`.
+- `DELETE /users/<id>`: any active admin; logs `user_deleted` with code/name before delete; `remove_user_from_json`.
 - `DELETE /admins/<id>`: Super Admin; block self/super; logs `admin_deleted`; `remove_admin_from_json`.
 - `POST /users/generate-code`: optional `full_name`, `admin_id` → sets `assigned_admin_id` to creator; logs auto-assignment; syncs JSON.
 - `_require_super_admin(admin_id)` / `_require_active_admin(admin_id)` helpers.
@@ -297,7 +299,7 @@ Admin credentials → `wefaq_admin` localStorage.
 **`AdminDashboardPage.jsx`**  
 - Status filter buttons + client-side gender/country/age filters; server-side scope (all/mine/by admin), education, financial filters.  
 - Generate code: passes `admin_id` → auto-assigns case to creator.  
-- User table: assigned admin name column; click name → full detail card (getUser + questions); status select; notes panel; Super Admin delete.  
+- User table: assigned admin name column; click name → full detail card (getUser + questions); status select; notes panel; delete user (any admin).  
 - Detail view: assign/reassign dropdown (editable only for super admin or current case owner).  
 - Activity log modal (`سجل الإجراءات`): all action types, Arabic labels, newest first.  
 - Notes: author name, internal vs visible checkbox.  

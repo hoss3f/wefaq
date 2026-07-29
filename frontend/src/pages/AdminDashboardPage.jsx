@@ -15,8 +15,7 @@ import {
   deleteUser,
   deleteAdmin,
   createAdmin,
-  assignUserCase,
-  getActivityLogs
+  assignUserCase
 } from '../services/adminService'
 import { getUser, getQuestions } from '../services/userService'
 
@@ -34,15 +33,6 @@ const SCOPE_FILTERS = [
 ]
 const EDUCATION_OPTIONS = ['ثانوي', 'دبلوم', 'بكالوريوس', 'ماجستير', 'دكتوراه']
 const FINANCIAL_OPTIONS = ['بسيط', 'متوسط', 'مرتفع', 'لا يهم']
-
-const ACTION_LABELS = {
-  admin_created: 'تم إنشاء مسؤول',
-  admin_deleted: 'تم حذف مسؤول',
-  user_deleted: 'تم حذف متقدم',
-  assignment: 'تعيين حالة',
-  status_change: 'تغيير الحالة',
-  note_added: 'إضافة ملاحظة'
-}
 
 function calcAge(birthday) {
   if (!birthday) return null
@@ -99,11 +89,7 @@ export default function AdminDashboardPage() {
   const [admins, setAdmins] = useState([])
   const [adminForm, setAdminForm] = useState(EMPTY_ADMIN_FORM)
   const [creatingAdmin, setCreatingAdmin] = useState(false)
-  const [assignTargetId, setAssignTargetId] = useState('')
-  const [assigning, setAssigning] = useState(false)
-  const [showLogs, setShowLogs] = useState(false)
-  const [activityLogs, setActivityLogs] = useState([])
-  const [loadingLogs, setLoadingLogs] = useState(false)
+  const [assigningUserId, setAssigningUserId] = useState(null)
 
   useEffect(() => {
     const stored = localStorage.getItem('wefaq_admin')
@@ -122,6 +108,14 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     if (!admin) return
+    if (!admin.is_super_admin && scopeFilter === 'by_admin') {
+      setScopeFilter('all')
+      setAssignedAdminFilter('')
+    }
+  }, [admin, scopeFilter])
+
+  useEffect(() => {
+    if (!admin) return
     listAdmins(admin.id)
       .then((data) => setAdmins(data.admins))
       .catch(() => {})
@@ -131,12 +125,12 @@ export default function AdminDashboardPage() {
     const params = {
       status: filter === 'all' ? undefined : filter,
       education: educationFilter || undefined,
-      financial: financialFilter || undefined
+      financial: financialFilter || undefined,
+      requestingAdminId: admin.id
     }
     if (scopeFilter === 'mine') {
       params.scope = 'mine'
-      params.requestingAdminId = admin.id
-    } else if (scopeFilter === 'by_admin' && assignedAdminFilter) {
+    } else if (scopeFilter === 'by_admin' && assignedAdminFilter && admin.is_super_admin) {
       params.assignedAdminId = Number(assignedAdminFilter)
     }
     const data = await listUsers(params)
@@ -169,16 +163,16 @@ export default function AdminDashboardPage() {
     })
   }, [users, genderFilter, countryFilter, ageFilter])
 
-  const selectedUserFromList = useMemo(
-    () => users.find((u) => u.id === selectedUserId) || null,
-    [users, selectedUserId]
-  )
+  const visibleScopeFilters = useMemo(() => {
+    if (admin?.is_super_admin) return SCOPE_FILTERS
+    return SCOPE_FILTERS.filter((s) => s.key !== 'by_admin')
+  }, [admin])
 
-  const canEditAssignment = useMemo(() => {
-    if (!admin || !selectedUserFromList) return false
+  function canAssignUser(user) {
+    if (!admin) return false
     if (admin.is_super_admin) return true
-    return selectedUserFromList.assigned_admin_id === admin.id
-  }, [admin, selectedUserFromList])
+    return user.assigned_admin_id === admin.id
+  }
 
   function openUserNotes(userId) {
     setSelectedUserId(userId)
@@ -190,8 +184,6 @@ export default function AdminDashboardPage() {
   async function openUserDetail(userId) {
     setError('')
     setSelectedUserId(userId)
-    const listUser = users.find((u) => u.id === userId)
-    setAssignTargetId(listUser?.assigned_admin_id ? String(listUser.assigned_admin_id) : '')
     try {
       const [detail, notesData] = await Promise.all([getUser(userId), getNotes(userId)])
       setUserDetail(detail)
@@ -240,32 +232,18 @@ export default function AdminDashboardPage() {
     }
   }
 
-  async function handleAssignCase() {
-    if (!selectedUserId || !assignTargetId) return
-    setAssigning(true)
+  async function handleAssignCase(userId, targetAdminId) {
+    if (!userId || !targetAdminId) return
+    setAssigningUserId(userId)
     setError('')
     try {
-      const res = await assignUserCase(selectedUserId, admin.id, Number(assignTargetId))
-      setUsers((prev) => prev.map((u) => (u.id === selectedUserId ? res.user : u)))
+      const res = await assignUserCase(userId, admin.id, Number(targetAdminId))
+      setUsers((prev) => prev.map((u) => (u.id === userId ? res.user : u)))
       await refreshUsers()
     } catch (err) {
       setError(err.message)
     } finally {
-      setAssigning(false)
-    }
-  }
-
-  async function openActivityLogs() {
-    setShowLogs(true)
-    setLoadingLogs(true)
-    setError('')
-    try {
-      const data = await getActivityLogs({ adminId: admin.id })
-      setActivityLogs(data.logs)
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoadingLogs(false)
+      setAssigningUserId(null)
     }
   }
 
@@ -324,7 +302,6 @@ export default function AdminDashboardPage() {
         <h1 className="font-display text-2xl text-teal-700">لوحة تحكم الإداري</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted">{admin.full_name}</span>
-          <Button variant="secondary" onClick={openActivityLogs}>سجل الإجراءات</Button>
           <Button variant="secondary" onClick={handleLogout}>تسجيل الخروج</Button>
         </div>
       </div>
@@ -349,57 +326,6 @@ export default function AdminDashboardPage() {
       )}
 
       {error && <p className="text-brick-500 text-sm mb-4">{error}</p>}
-
-      {showLogs && (
-        <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg text-teal-700">سجل الإجراءات</h2>
-              <button
-                onClick={() => setShowLogs(false)}
-                className="text-sm text-muted hover:text-ink"
-              >
-                إغلاق
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1">
-              {loadingLogs ? (
-                <p className="text-muted text-sm">جارٍ التحميل...</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-muted border-b border-teal-100">
-                      <th className="text-right py-2">الإجراء</th>
-                      <th className="text-right py-2">الإداري</th>
-                      <th className="text-right py-2">المستخدم</th>
-                      <th className="text-right py-2">التفاصيل</th>
-                      <th className="text-right py-2">التاريخ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activityLogs.map((log) => (
-                      <tr key={log.id} className="border-b border-teal-50">
-                        <td className="py-2">{ACTION_LABELS[log.action_type] || log.action_type}</td>
-                        <td className="py-2">{log.admin_name || '—'}</td>
-                        <td className="py-2">{log.user_name || '—'}</td>
-                        <td className="py-2 text-muted">{log.details || '—'}</td>
-                        <td className="py-2 text-muted whitespace-nowrap">
-                          {log.created_at ? new Date(log.created_at).toLocaleString('ar') : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                    {activityLogs.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-6 text-center text-muted">لا توجد إجراءات مسجّلة</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
 
       {panelTab === 'admins' && admin.is_super_admin ? (
         <div className="grid md:grid-cols-2 gap-6">
@@ -456,20 +382,17 @@ export default function AdminDashboardPage() {
         </div>
       ) : (
         <>
-          <div className="flex gap-2 mb-4 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2 mb-6">
             {STATUS_FILTERS.map((status) => (
               <button
                 key={status}
                 onClick={() => setFilter(status)}
-                className={`px-4 py-2 rounded-xl text-sm border
+                className={`px-3 py-2 rounded-xl text-sm border whitespace-nowrap
                   ${filter === status ? 'bg-teal-600 text-linen border-teal-600' : 'border-teal-100 text-ink hover:bg-teal-50'}`}
               >
                 {status === 'all' ? 'الكل' : config.statusLabels[status]}
               </button>
             ))}
-          </div>
-
-          <div className="flex gap-3 mb-4 flex-wrap">
             <select
               value={genderFilter}
               onChange={(e) => setGenderFilter(e.target.value)}
@@ -498,24 +421,20 @@ export default function AdminDashboardPage() {
                 <option key={a.key} value={a.key}>{a.label}</option>
               ))}
             </select>
-          </div>
-
-          <div className="flex gap-3 mb-6 flex-wrap items-center">
-            <label className="text-sm text-muted">نطاق العرض:</label>
-            {SCOPE_FILTERS.map((s) => (
+            {visibleScopeFilters.map((s) => (
               <button
                 key={s.key}
                 onClick={() => {
                   setScopeFilter(s.key)
                   if (s.key !== 'by_admin') setAssignedAdminFilter('')
                 }}
-                className={`px-3 py-2 rounded-xl text-sm border
+                className={`px-3 py-2 rounded-xl text-sm border whitespace-nowrap
                   ${scopeFilter === s.key ? 'bg-teal-600 text-linen border-teal-600' : 'border-teal-100 text-ink hover:bg-teal-50'}`}
               >
                 {s.label}
               </button>
             ))}
-            {scopeFilter === 'by_admin' && (
+            {admin.is_super_admin && scopeFilter === 'by_admin' && (
               <select
                 value={assignedAdminFilter}
                 onChange={(e) => setAssignedAdminFilter(e.target.value)}
@@ -597,32 +516,53 @@ export default function AdminDashboardPage() {
                         </button>
                       </td>
                       <td className="py-3">{u.code}</td>
-                      <td className="py-3 text-muted">{u.assigned_admin_name || '—'}</td>
-                      <td className="py-3"><StatusBadge status={u.status} /></td>
                       <td className="py-3">
-                        <select
-                          value={u.status}
-                          onChange={(e) => handleStatusChange(u.id, e.target.value)}
-                          className="border border-teal-100 rounded-lg px-2 py-1 ml-2"
-                        >
-                          {Object.keys(config.statusLabels).map((s) => (
-                            <option key={s} value={s}>{config.statusLabels[s]}</option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => openUserNotes(u.id)}
-                          className="text-teal-600 text-sm hover:underline ml-2"
-                        >
-                          الملاحظات
-                        </button>
-                        {admin.is_super_admin && (
+                        {canAssignUser(u) ? (
+                          <select
+                            value={u.assigned_admin_id ? String(u.assigned_admin_id) : ''}
+                            onChange={(e) => {
+                              const nextId = e.target.value
+                              if (nextId && Number(nextId) !== u.assigned_admin_id) {
+                                handleAssignCase(u.id, nextId)
+                              }
+                            }}
+                            disabled={assigningUserId === u.id}
+                            className="w-full min-w-[120px] max-w-[160px] border border-teal-100 rounded-lg px-2 py-1 text-sm bg-linen disabled:opacity-60"
+                          >
+                            <option value="">—</option>
+                            {admins.map((a) => (
+                              <option key={a.id} value={a.id}>{a.full_name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-muted">{u.assigned_admin_name || '—'}</span>
+                        )}
+                      </td>
+                      <td className="py-3"><StatusBadge status={u.status} /></td>
+                      <td className="py-3 whitespace-nowrap">
+                        <div className="inline-flex flex-row flex-nowrap items-center gap-2">
+                          <select
+                            value={u.status}
+                            onChange={(e) => handleStatusChange(u.id, e.target.value)}
+                            className="shrink-0 border border-teal-100 rounded-lg px-2 py-1 text-sm bg-linen"
+                          >
+                            {Object.keys(config.statusLabels).map((s) => (
+                              <option key={s} value={s}>{config.statusLabels[s]}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => openUserNotes(u.id)}
+                            className="shrink-0 text-teal-600 text-sm hover:underline"
+                          >
+                            الملاحظات
+                          </button>
                           <button
                             onClick={() => handleDeleteUser(u.id, u.full_name)}
-                            className="text-brick-500 text-sm hover:underline ml-2"
+                            className="shrink-0 text-brick-500 text-sm hover:underline"
                           >
                             حذف
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -707,31 +647,6 @@ export default function AdminDashboardPage() {
                   <span className="text-muted">الحالة:</span>
                   <StatusBadge status={userDetail.user.status} />
                 </p>
-                <div className="sm:col-span-2">
-                  <span className="text-muted">مسؤول الحالة: </span>
-                  {canEditAssignment ? (
-                    <div className="flex gap-2 items-center mt-2 flex-wrap">
-                      <select
-                        value={assignTargetId}
-                        onChange={(e) => setAssignTargetId(e.target.value)}
-                        className="rounded-xl border border-teal-100 px-3 py-2 bg-linen text-sm"
-                      >
-                        <option value="">اختر المسؤول</option>
-                        {admins.map((a) => (
-                          <option key={a.id} value={a.id}>{a.full_name}</option>
-                        ))}
-                      </select>
-                      <Button
-                        onClick={handleAssignCase}
-                        disabled={assigning || !assignTargetId}
-                      >
-                        {assigning ? 'جارٍ التعيين...' : 'تعيين / إعادة تعيين'}
-                      </Button>
-                    </div>
-                  ) : (
-                    <span className="text-ink">{selectedUserFromList?.assigned_admin_name || '—'}</span>
-                  )}
-                </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">

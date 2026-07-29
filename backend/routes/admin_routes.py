@@ -56,8 +56,14 @@ def list_users():
         query = query.filter(User.status == status_filter)
 
     if scope == 'mine' and requesting_admin_id:
+        requester = _require_active_admin(requesting_admin_id)
+        if not requester:
+            return jsonify({'success': False, 'message': 'غير مصرح'}), 403
         query = query.filter(User.assigned_admin_id == requesting_admin_id)
     elif assigned_admin_id:
+        requester = _require_active_admin(requesting_admin_id)
+        if not requester or not requester.is_super_admin:
+            return jsonify({'success': False, 'message': 'غير مصرح'}), 403
         query = query.filter(User.assigned_admin_id == assigned_admin_id)
 
     if education or financial:
@@ -343,12 +349,12 @@ def list_admins():
 
 @admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    """حذف مستخدم — للمدير العام فقط"""
+    """حذف مستخدم — أي إداري نشط"""
     from utils import remove_user_from_json, log_activity
 
     data = request.get_json() or {}
     admin_id = data.get('admin_id')
-    if not _require_super_admin(admin_id):
+    if not _require_active_admin(admin_id):
         return jsonify({'success': False, 'message': 'غير مصرح'}), 403
 
     user = User.query.get(user_id)
