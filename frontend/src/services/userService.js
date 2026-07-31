@@ -1,5 +1,5 @@
 // frontend/src/services/userService.js
-import { apiGet, apiPost, apiPut } from './api'
+import { apiGet, apiPost, apiPut, apiPostForm } from './api'
 
 /** جلب أسئلة الاختيار من متعدد والأسئلة المفتوحة لعرضها في النموذج */
 export function getQuestions() {
@@ -7,8 +7,17 @@ export function getQuestions() {
 }
 
 /** تسجيل مستخدم جديد بالبيانات الشخصية */
-export function registerUser(personalData) {
-  return apiPost('/users/register', personalData)
+export function registerUser(personalData, photoFile) {
+  const formData = new FormData()
+  Object.entries(personalData).forEach(([key, value]) => {
+    if (value != null && value !== '') {
+      formData.append(key, value)
+    }
+  })
+  if (photoFile) {
+    formData.append('photo', photoFile)
+  }
+  return apiPostForm('/users/register', formData)
 }
 
 /** حفظ إجابات المستخدم على الأسئلة المغلقة والمفتوحة */

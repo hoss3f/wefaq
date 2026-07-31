@@ -14,7 +14,9 @@ from utils import (
     generate_user_code,
     sync_user_to_json,
     user_needs_onboarding,
-    is_placeholder_name
+    is_placeholder_name,
+    save_user_photo,
+    photo_url_for,
 )
 
 user_bp = Blueprint('user', __name__, url_prefix='/api')
@@ -81,6 +83,13 @@ def _upsert_answers(user_id, mcq_data, open_data):
     return mcq_answer, open_answer
 
 
+def _parse_registration_data():
+    """قراءة بيانات التسجيل من JSON أو multipart/form-data"""
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        return request.form.to_dict(), request.files.get('photo')
+    return request.get_json() or {}, None
+
+
 def _user_payload(user, needs=None):
     return {
         'id': user.id,
@@ -93,6 +102,7 @@ def _user_payload(user, needs=None):
         'country': user.country,
         'guardian_phone': user.guardian_phone,
         'guardian_relation': user.guardian_relation,
+        'photo_url': photo_url_for(user.photo_path),
         'status': user.status,
         'status_reason': user.status_reason,
         'created_at': user.created_at.isoformat() if user.created_at else None,
@@ -113,7 +123,7 @@ def get_questions():
 @admin_required
 def register_user():
     """تسجيل مستخدم جديد — يتطلب مصادقة إدارية"""
-    data = request.get_json() or {}
+    data, photo_file = _parse_registration_data()
 
     missing = [field for field in REQUIRED_FIELDS if not data.get(field)]
     if missing:
@@ -134,6 +144,13 @@ def register_user():
     if not email:
         return jsonify({'success': False, 'message': 'البريد الإلكتروني غير صحيح'}), 400
 
+    photo_path = sanitize_text(data.get('photo_path', ''), 200) or None
+    if photo_file and photo_file.filename:
+        filename, photo_err = save_user_photo(photo_file)
+        if photo_err:
+            return jsonify({'success': False, 'message': photo_err}), 400
+        photo_path = filename
+
     new_user = User(
         code=generate_user_code(User),
         full_name=sanitize_text(data['full_name'], 100),
@@ -143,7 +160,7 @@ def register_user():
         gender=sanitize_text(data['gender'], 10),
         guardian_phone=sanitize_text(data.get('guardian_phone', ''), 20),
         guardian_relation=sanitize_text(data.get('guardian_relation', ''), 50),
-        photo_path=sanitize_text(data.get('photo_path', ''), 200),
+        photo_path=photo_path,
         country=sanitize_text(data['country'], 50),
         status='pending'
     )
@@ -154,7 +171,7 @@ def register_user():
     return jsonify({
         'success': True,
         'message': 'تم إنشاء الحساب بنجاح',
-        'user': {'id': new_user.id, 'code': new_user.code}
+        'user': {'id': new_user.id, 'code': new_user.code, 'photo_url': photo_url_for(new_user.photo_path)}
     }), 201
 
 

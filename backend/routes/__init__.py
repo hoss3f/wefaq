@@ -3,6 +3,7 @@ from routes.auth_routes import auth_bp
 from routes.user_routes import user_bp
 from routes.admin_routes import admin_bp
 from routes.notification_routes import notification_bp
+from routes.matching_routes import matching_bp
 
 
 def register_routes(app):
@@ -11,3 +12,4 @@ def register_routes(app):
     app.register_blueprint(user_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(notification_bp)
+    app.register_blueprint(matching_bp)

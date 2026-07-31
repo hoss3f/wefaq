@@ -1,6 +1,7 @@
 # backend/routes/admin_routes.py
 from flask import Blueprint, request, jsonify
 from models import db, User, Admin, AdminNote, Notification
+from utils import photo_url_for
 from security import (
     admin_required,
     super_admin_required,
@@ -43,7 +44,8 @@ def list_users():
             'birthday': u.birthday.isoformat() if u.birthday else None,
             'status': u.status,
             'assigned_admin_id': u.assigned_admin_id,
-            'created_at': u.created_at.isoformat() if u.created_at else None
+            'created_at': u.created_at.isoformat() if u.created_at else None,
+            'photo_url': photo_url_for(u.photo_path),
         } for u in users]
     }), 200
 

@@ -4,9 +4,13 @@ import os
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get('WEFAQ_DATA_DIR', os.path.join(BASE_DIR, 'data'))
 INSTANCE_DIR = os.environ.get('WEFAQ_INSTANCE_DIR', os.path.join(BASE_DIR, 'instance'))
+UPLOAD_DIR = os.environ.get('WEFAQ_UPLOAD_DIR', os.path.join(BASE_DIR, 'uploads'))
 
 # تأكد من وجود مجلد instance
 os.makedirs(INSTANCE_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+ALLOWED_PHOTO_EXTENSIONS = {'jpg', 'jpeg', 'png', 'webp'}
 
 SQLALCHEMY_DATABASE_URI = f'sqlite:///{os.path.join(INSTANCE_DIR, "wefaq.db")}'
 SQLALCHEMY_TRACK_MODIFICATIONS = False

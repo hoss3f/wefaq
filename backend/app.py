@@ -1,5 +1,5 @@
 # backend/app.py
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import (
     SQLALCHEMY_DATABASE_URI,
@@ -7,6 +7,7 @@ from config import (
     SECRET_KEY,
     CORS_ORIGINS,
     TESTING,
+    UPLOAD_DIR,
 )
 from models import db, Admin
 from utils import load_questions, load_admins, load_users, hash_password
@@ -23,10 +24,15 @@ def create_app():
     cors_kwargs = {"origins": CORS_ORIGINS}
     if CORS_ORIGINS != '*':
         cors_kwargs["supports_credentials"] = True
+    cors_kwargs["allow_headers"] = ["Content-Type", "X-Admin-Id", "X-User-Code"]
     CORS(flask_app, resources={r"/api/*": cors_kwargs})
 
     db.init_app(flask_app)
     register_routes(flask_app)
+
+    @flask_app.route('/uploads/<path:filename>')
+    def serve_upload(filename):
+        return send_from_directory(UPLOAD_DIR, filename)
 
     with flask_app.app_context():
         db.create_all()
