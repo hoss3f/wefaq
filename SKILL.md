@@ -100,10 +100,12 @@ Returned on login and `GET /users/<id>` as `needs_onboarding`.
 - `true` = shown on user dashboard via `visible_notes` in `GET /users/<id>`
 
 ### Super Admin powers
-- `GET /admin/admins?admin_id=`
-- `DELETE /admin/users/<id>` / `DELETE /admin/admins/<id>`
-- Cannot delete self or another super admin
+- `GET /admin/admins?admin_id=` (full admin list)
+- `DELETE /admin/admins/<id>` — cannot delete self or another super admin
 - Create admin via `POST /admin/create` (also syncs JSON)
+
+### Admin powers (any active admin)
+- `DELETE /admin/users/<id>` — delete applicant users
 
 ---
 
@@ -113,24 +115,34 @@ Defined in `backend/models.py`. Shared `db = SQLAlchemy()`.
 
 | Table | Model | Purpose |
 |-------|--------|---------|
-| `users` | `User` | Applicant; unique `code`; profile fields; `status`; timestamps |
+| `users` | `User` | Applicant; unique `code`; profile fields; `status`; `assigned_admin_id` (FK → admins); timestamps |
 | `mcq_answers` | `MCQAnswer` | One row per user; `q1`–`q4` short strings |
 | `open_answers` | `OpenAnswer` | One row per user; `q1`–`q4` text essays |
 | `admins` | `Admin` | Staff; `email` unique; `password_hash`; `is_super_admin`; `is_active` |
 | `admin_notes` | `AdminNote` | Note on a user by an admin; `is_visible_to_user` |
 | `notifications` | `Notification` | Messages to user and/or admin; `is_read` |
+| `activity_logs` | `ActivityLog` | Audit trail: `admin_id`, optional `user_id` (SET NULL on delete), `action_type`, `details`, `created_at` |
+
+**MCQ semantic mapping (filtering):**
+- `q1` = education level → exact values: ثانوي / دبلوم / بكالوريوس / ماجستير / دكتوراه
+- `q2` = financial level → exact values: بسيط / متوسط / مرتفع / لا يهم
+- `q3` / `q4` = other questions (not used for admin filters)
 
 Relationships use `cascade='all, delete-orphan'` so deleting a user removes answers, notes, notifications.
+User has `assigned_admin` relationship to `Admin`.
 
-**Schema changes in development:** delete `backend/instance/wefaq.db` and restart; `db.create_all()` recreates tables; Super Admin is re-seeded.
+**Schema changes in development:** delete `backend/instance/wefaq.db` and restart; `db.create_all()` recreates tables; Super Admin is re-seeded from `admins.json`; users missing from DB are re-seeded from `users.json` (matched by unique `code`).
 
 ---
 
 ## 5. Backend file library
 
 ### `backend/app.py`
-- Factory `create_app()`: config, CORS (`/api/*`), `db.init_app`, `register_routes`, `db.create_all()`, `seed_super_admin()`.
+- Factory `create_app()`: config, CORS (`/api/*`), `db.init_app`, `register_routes`, `db.create_all()`, `seed_super_admin()`, `seed_users_from_json()`.
 - `seed_super_admin()`: reads `admins.json` → `super_admin`; creates Admin with hashed password if email not in DB.
+- `seed_users_from_json()`: reads `users.json`; for each entry whose `code` is not already in DB, inserts User (and optional nested `mcq_answers` / `open_answers` if present). Does not duplicate or overwrite existing rows.
+- **Persistence:** `wefaq.db` lives at `backend/instance/wefaq.db` and **persists across restarts** — `create_all()` only creates missing tables; it does not drop or recreate the file. If the DB file is deleted manually, both seed functions repopulate from JSON mirrors on next start.
+- **Sync audit:** all user write paths call `sync_user_to_json`: `POST /admin/users/generate-code`, `POST /users/register`, `POST /users/<id>/complete`, `POST /users/<id>/answers`, `PUT /users/<id>`, `PUT /admin/users/<id>/status`, `PUT /admin/users/<id>/assign`. Status changes previously skipped sync — now fixed.
 - `__main__`: optional JSON load printout, then `app.run(debug=True)`.
 
 ### `backend/config.py`
@@ -150,6 +162,7 @@ Relationships use `cascade='all, delete-orphan'` so deleting a user removes answ
 - `generate_user_code(User)` → next unique `USER###` from **highest existing number** (not row count; avoids collisions after deletes).
 - `is_placeholder_name`, `user_needs_onboarding`.
 - User JSON sync: `sync_user_to_json`, `remove_user_from_json`.
+- Activity logging: `log_activity(admin_id, user_id, action_type, details)` — adds `ActivityLog` row; caller commits.
 - Admin JSON sync: `_normalize_admins_file` (strips any legacy `code` on super_admin), `sync_admin_to_json(admin, plain_password=...)`, `remove_admin_from_json(email)`.
   - Super admin lives under key `super_admin`.
   - Regular admins in array `admins` with plaintext password stored **only at create time** (mirror of seed style; not production-safe).
@@ -171,15 +184,17 @@ Relationships use `cascade='all, delete-orphan'` so deleting a user removes answ
 - Helpers: `_parse_birthday`, `_apply_personal_data`, `_upsert_answers`, `_user_payload`.
 
 ### `backend/routes/admin_routes.py` — prefix `/api/admin`
-- `GET /users`: list users (optional `?status=`); includes `birthday`, `created_at` for client filters.
-- `PUT /users/<id>/status`: set status + optional reason; create user notification.
-- `POST/GET /users/<id>/notes`: add note with `is_visible_to_user`; list notes with `admin_name`.
-- `POST /create`: create non-super admin; `sync_admin_to_json` with plaintext password.
-- `GET /admins?admin_id=`: Super Admin only.
-- `DELETE /users/<id>`: Super Admin; also `remove_user_from_json`.
-- `DELETE /admins/<id>`: Super Admin; block self/super; `remove_admin_from_json`.
-- `POST /users/generate-code`: optional name → default `DEFAULT_USER_NAME`; sync user JSON.
-- `_require_super_admin(admin_id)` helper.
+- `GET /users`: list users; filters: `status`, `scope=all|mine`, `requesting_admin_id`, `assigned_admin_id`, `education` (mcq q1), `financial` (mcq q2); returns `assigned_admin_name`.
+- `PUT /users/<id>/status`: set status + optional reason; body includes `admin_id`; creates user notification + activity log; syncs JSON.
+- `PUT /users/<id>/assign`: body `{ admin_id, target_admin_id }`; only super admin or current `assigned_admin_id` may reassign; logs assignment; syncs JSON.
+- `POST/GET /users/<id>/notes`: add note with `is_visible_to_user`; list notes with `admin_name`; POST logs `note_added` (visibility flag only, not note text).
+- `GET /logs?admin_id=&filter_admin_id=&user_id=&date_from=&date_to=`: activity log for any active admin; newest first; includes `admin_name`, `user_name`.
+- `POST /create`: create non-super admin (requires `admin_id` of super admin); `sync_admin_to_json`; logs `admin_created`.
+- `GET /admins?admin_id=`: active admin required; super admin gets full list; others get `{ id, full_name }` only (for assignment dropdown).
+- `DELETE /users/<id>`: any active admin; logs `user_deleted` with code/name before delete; `remove_user_from_json`.
+- `DELETE /admins/<id>`: Super Admin; block self/super; logs `admin_deleted`; `remove_admin_from_json`.
+- `POST /users/generate-code`: optional `full_name`, `admin_id` → sets `assigned_admin_id` to creator; logs auto-assignment; syncs JSON.
+- `_require_super_admin(admin_id)` / `_require_active_admin(admin_id)` helpers.
 
 ### `backend/routes/notification_routes.py` — prefix `/api/notifications`
 - `GET /user/<id>`: list notifications newest first.
@@ -241,7 +256,7 @@ No admin login `code` field.
 | `services/api.js` | Shared `fetch` wrapper; throws `Error(message)` on non-OK; exports GET/POST/PUT/DELETE |
 | `services/authService.js` | `loginUser`, `loginAdmin` |
 | `services/userService.js` | questions, register, answers, **completeApplication**, getUser, updateUser, notifications |
-| `services/adminService.js` | listUsers, updateUserStatus, addNote/getNotes, generateUserCode, listAdmins, deleteUser/Admin, createAdmin |
+| `services/adminService.js` | listUsers (scope/education/financial filters), updateUserStatus, assignUserCase, getActivityLogs, addNote/getNotes, generateUserCode, listAdmins, deleteUser/Admin, createAdmin |
 
 ### Components
 | File | Role |
@@ -282,11 +297,13 @@ Shows timeline (created_at, +3 days expected response), editable profile, visibl
 Admin credentials → `wefaq_admin` localStorage.
 
 **`AdminDashboardPage.jsx`**  
-- Status filter buttons + client-side gender/country/age filters (age from birthday).  
-- Generate code: single input placeholder `متقدم جديد`, one generate button (empty → backend default name).  
-- User table: click name → full detail card (getUser + questions); status select; notes panel; Super Admin delete.  
+- Status filter buttons + client-side gender/country/age filters; server-side scope (all/mine/by admin), education, financial filters.  
+- Generate code: passes `admin_id` → auto-assigns case to creator.  
+- User table: assigned admin name column; click name → full detail card (getUser + questions); status select; notes panel; delete user (any admin).  
+- Detail view: assign/reassign dropdown (editable only for super admin or current case owner).  
+- Activity log modal (`سجل الإجراءات`): all action types, Arabic labels, newest first.  
 - Notes: author name, internal vs visible checkbox.  
-- Super Admin tab: create admin form, list admins, delete with confirm.
+- Super Admin tab: create admin form (passes `admin_id`), list admins, delete with confirm.
 
 ---
 
@@ -387,4 +404,4 @@ frontend/src/services/*            API clients
 
 ---
 
-*Last aligned with the codebase after admin/user enhancements, first-login onboarding, progress tracker, admin JSON sync, and home CTAs (user code vs admin login).*
+*Last aligned with case assignment, activity logging, advanced filtering, users.json seed on startup, and admin dashboard enhancements.*

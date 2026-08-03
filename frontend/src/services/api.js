@@ -55,6 +55,7 @@ async function request(path, { method = 'GET', body } = {}) {
       'Content-Type': 'application/json',
       ...buildAuthHeaders()
     },
+    headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined
   })
 

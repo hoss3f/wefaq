@@ -20,6 +20,18 @@
       "email": "ad2@wefaq.com",
       "city": "doha",
       "password": "123345678"
+      "full_name": "jdj",
+      "phone": "3",
+      "email": "ad@wefaq.com",
+      "city": "c",
+      "password": "SuperAdmin@2026"
+    },
+    {
+      "full_name": "dsv",
+      "phone": "8dj",
+      "email": "ad2@wefaq.com",
+      "city": "qatar",
+      "password": "ad2"
     }
   ]
 }
