@@ -1,4 +1,15 @@
 # backend/app.py
+from flask import Flask, send_from_directory
+from flask_cors import CORS
+from config import (
+    SQLALCHEMY_DATABASE_URI,
+    SQLALCHEMY_TRACK_MODIFICATIONS,
+    SECRET_KEY,
+    CORS_ORIGINS,
+    TESTING,
+    UPLOAD_DIR,
+)
+from models import db, Admin
 from datetime import datetime
 from flask import Flask
 from flask_cors import CORS
@@ -35,11 +46,20 @@ def create_app():
     flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = SQLALCHEMY_TRACK_MODIFICATIONS
     flask_app.config['SECRET_KEY'] = SECRET_KEY
 
+    cors_kwargs = {"origins": CORS_ORIGINS}
+    if CORS_ORIGINS != '*':
+        cors_kwargs["supports_credentials"] = True
+    cors_kwargs["allow_headers"] = ["Content-Type", "X-Admin-Id", "X-User-Code"]
+    CORS(flask_app, resources={r"/api/*": cors_kwargs})
     # السماح لطلبات الواجهة الأمامية (Vite على المنفذ 5173) بالوصول إلى API
     CORS(flask_app, resources={r"/api/*": {"origins": "*"}})
 
     db.init_app(flask_app)
     register_routes(flask_app)
+
+    @flask_app.route('/uploads/<path:filename>')
+    def serve_upload(filename):
+        return send_from_directory(UPLOAD_DIR, filename)
 
     with flask_app.app_context():
         db.create_all()

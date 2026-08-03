@@ -40,6 +40,7 @@ if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
 from app import create_app  # noqa: E402
+from utils import photo_url_for  # noqa: E402
 
 app = create_app()
 client = app.test_client()
@@ -116,6 +117,19 @@ def test_questions_load():
     assert data['success'] is True
     assert len(data['questions']['mcq']) == 4
     assert len(data['questions']['open']) == 4
+
+
+def test_photo_url_uses_public_base_url():
+    original = os.environ.get('WEFAQ_PUBLIC_BASE_URL')
+    os.environ['WEFAQ_PUBLIC_BASE_URL'] = 'https://images.example.com'
+    try:
+        with app.test_request_context('/'):
+            assert photo_url_for('avatar.png') == 'https://images.example.com/uploads/avatar.png'
+    finally:
+        if original is None:
+            os.environ.pop('WEFAQ_PUBLIC_BASE_URL', None)
+        else:
+            os.environ['WEFAQ_PUBLIC_BASE_URL'] = original
 
 
 def test_super_admin_login():
@@ -424,6 +438,65 @@ def test_list_admins_super_admin_only():
     assert any(a['is_super_admin'] for a in data['admins'])
 
 
+def test_matching_pair_opposite_gender():
+    """Create a male candidate and score against the existing female user."""
+    gen = assert_ok(_json('post', '/api/admin/users/generate-code',
+                          headers=admin_headers(state['super_admin_id']),
+                          body={'full_name': 'محمد علي'}), 201)
+    male_id, male_code = gen['user']['id'], gen['user']['code']
+
+    personal = sample_personal('محمد علي')
+    personal['gender'] = 'ذكر'
+    personal['email'] = 'mohammed.test@example.com'
+    personal['birthday'] = '1995-03-10'
+    assert_ok(_json('post', f'/api/users/{male_id}/complete',
+                    headers=user_headers(male_code),
+                    body={'personal': personal, 'mcq': sample_mcq(), 'open': sample_open()}))
+
+    data = assert_ok(_json('get',
+                           f"/api/admin/matches/pair?user_a={state['user_id']}&user_b={male_id}",
+                           headers=admin_headers(state['super_admin_id'])))
+    match = data['match']
+    assert match['mandatory_passed'] is True
+    assert match['total_score'] > 0
+    assert match['stages']['eligibility']['score'] == 30
+    assert match['confidence']['en'] in {
+        'Excellent Match', 'Strong Match', 'Moderate Match', 'Weak Match', 'Poor Match'
+    }
+
+
+def test_matching_same_gender_fails_mandatory():
+    gen = assert_ok(_json('post', '/api/admin/users/generate-code',
+                          headers=admin_headers(state['super_admin_id']),
+                          body={'full_name': 'سارة أحمد'}), 201)
+    female_id, female_code = gen['user']['id'], gen['user']['code']
+
+    personal = sample_personal('سارة أحمد')
+    personal['email'] = 'sara.test@example.com'
+    assert_ok(_json('post', f'/api/users/{female_id}/complete',
+                    headers=user_headers(female_code),
+                    body={'personal': personal, 'mcq': sample_mcq(), 'open': sample_open()}))
+
+    data = assert_ok(_json('get',
+                           f"/api/admin/matches/pair?user_a={state['user_id']}&user_b={female_id}",
+                           headers=admin_headers(state['super_admin_id'])))
+    assert data['match']['mandatory_passed'] is False
+    assert data['match']['total_score'] <= 39
+
+
+def test_matching_list_for_user():
+    data = assert_ok(_json('get', f"/api/admin/users/{state['user_id']}/matches",
+                           headers=admin_headers(state['super_admin_id'])))
+    assert data['success'] is True
+    assert data['user']['id'] == state['user_id']
+    assert isinstance(data['matches'], list)
+
+
+def test_matching_routes_require_admin():
+    resp = _json('get', f"/api/admin/users/{state['user_id']}/matches")
+    assert_fail(resp, 403)
+
+
 # ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
@@ -463,6 +536,10 @@ HARD_TESTS = [
     test_sql_injection_in_name_stored_safely,
     test_admin_read_user_via_admin_header,
     test_list_admins_super_admin_only,
+    test_matching_pair_opposite_gender,
+    test_matching_same_gender_fails_mandatory,
+    test_matching_list_for_user,
+    test_matching_routes_require_admin,
 ]
 
 

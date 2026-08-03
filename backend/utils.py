@@ -1,8 +1,10 @@
 # backend/utils.py
 import json
 import os
+import random
+import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
-from config import DATA_DIR, DEFAULT_USER_NAME
+from config import DATA_DIR, DEFAULT_USER_NAME, UPLOAD_DIR, ALLOWED_PHOTO_EXTENSIONS
 
 
 def read_json_file(filename):
@@ -45,6 +47,38 @@ def verify_password(password_hash, raw_password):
     """التحقق من تطابق كلمة المرور مع النسخة المشفرة"""
     return check_password_hash(password_hash, raw_password)
 
+
+def photo_url_for(photo_path):
+    """بناء رابط الصورة العامة من اسم الملف المحفوظ"""
+    if not photo_path:
+        return None
+
+    if photo_path.startswith(('http://', 'https://')):
+        return photo_path
+
+    public_base_url = os.environ.get('WEFAQ_PUBLIC_BASE_URL', '').strip().rstrip('/')
+    if public_base_url:
+        return f"{public_base_url}/uploads/{photo_path.lstrip('/')}"
+
+    from flask import request
+    return f"{request.host_url.rstrip('/')}/uploads/{photo_path.lstrip('/')}"
+
+
+def save_user_photo(file_storage):
+    """حفظ صورة المستخدم وإرجاع اسم الملف أو رسالة خطأ"""
+    if not file_storage or not file_storage.filename:
+        return None, None
+
+    ext = file_storage.filename.rsplit('.', 1)[-1].lower() if '.' in file_storage.filename else ''
+    if ext not in ALLOWED_PHOTO_EXTENSIONS:
+        return None, 'صيغة الصورة غير مدعومة. المسموح: jpg, jpeg, png, webp'
+
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    file_storage.save(os.path.join(UPLOAD_DIR, filename))
+    return filename, None
+
+
+import random
 
 def generate_user_code(user_model):
     """

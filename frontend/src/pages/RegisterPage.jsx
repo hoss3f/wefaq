@@ -17,6 +17,8 @@ export default function RegisterPage() {
   const [personal, setPersonal] = useState({})
   const [mcqAnswers, setMcqAnswers] = useState({})
   const [openAnswers, setOpenAnswers] = useState({})
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [resultCode, setResultCode] = useState(null)
@@ -37,6 +39,23 @@ export default function RegisterPage() {
 
   function handleOpenChange(questionKey, value) {
     setOpenAnswers((prev) => ({ ...prev, [questionKey]: value }))
+  }
+
+  function handlePhotoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) {
+      setPhotoFile(null)
+      setPhotoPreview(null)
+      return
+    }
+    const allowed = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      setError('صيغة الصورة غير مدعومة. المسموح: jpg, jpeg, png, webp')
+      return
+    }
+    setError('')
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
   }
 
   function goNext() {
@@ -67,7 +86,7 @@ export default function RegisterPage() {
     setLoading(true)
     setError('')
     try {
-      const registerRes = await registerUser(personal)
+      const registerRes = await registerUser(personal, photoFile)
       const userId = registerRes.user.id
 
       await saveAnswers(userId, mcqAnswers, openAnswers)
@@ -111,6 +130,22 @@ export default function RegisterPage() {
                 onChange={handlePersonalChange}
               />
             ))}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">صورة شخصية (اختياري)</label>
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                onChange={handlePhotoChange}
+                className="block w-full text-sm text-muted"
+              />
+              {photoPreview && (
+                <img
+                  src={photoPreview}
+                  alt="معاينة الصورة"
+                  className="mt-3 w-24 h-24 rounded-full object-cover border border-teal-100"
+                />
+              )}
+            </div>
           </div>
         )}
 
@@ -172,6 +207,12 @@ export default function RegisterPage() {
                 <p><span className="text-muted">الجوال:</span> {personal.phone}</p>
                 <p><span className="text-muted">البريد:</span> {personal.email}</p>
                 <p><span className="text-muted">الدولة:</span> {personal.country}</p>
+                {photoPreview && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-muted">الصورة:</span>
+                    <img src={photoPreview} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  </div>
+                )}
               </div>
               <div className="bg-teal-50 rounded-xl p-4 space-y-1">
                 <p className="font-medium text-teal-700 mb-2">أسئلة الاختيار</p>

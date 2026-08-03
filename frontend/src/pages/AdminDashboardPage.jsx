@@ -18,6 +18,8 @@ import {
   assignUserCase
 } from '../services/adminService'
 import { getUser, getQuestions } from '../services/userService'
+import { getMatchesForUser } from '../services/matchingService'
+import { buildPhotoUrl } from '../services/api'
 
 const STATUS_FILTERS = ['all', 'pending', 'reviewing', 'approved', 'rejected']
 const AGE_FILTERS = [
@@ -43,6 +45,24 @@ function calcAge(birthday) {
   const m = today.getMonth() - birth.getMonth()
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age -= 1
   return age
+}
+
+function UserAvatar({ photoUrl, name }) {
+  const fullUrl = buildPhotoUrl(photoUrl)
+  if (fullUrl) {
+    return (
+      <img
+        src={fullUrl}
+        alt=""
+        className="w-10 h-10 rounded-full object-cover shrink-0"
+      />
+    )
+  }
+  return (
+    <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center shrink-0 text-sm font-medium">
+      {name?.charAt(0) || '?'}
+    </div>
+  )
 }
 
 function matchesAgeFilter(birthday, ageFilter) {
@@ -89,6 +109,9 @@ export default function AdminDashboardPage() {
   const [admins, setAdmins] = useState([])
   const [adminForm, setAdminForm] = useState(EMPTY_ADMIN_FORM)
   const [creatingAdmin, setCreatingAdmin] = useState(false)
+  const [matches, setMatches] = useState([])
+  const [loadingMatches, setLoadingMatches] = useState(false)
+  const [expandedMatchId, setExpandedMatchId] = useState(null)
   const [assigningUserId, setAssigningUserId] = useState(null)
 
   useEffect(() => {
@@ -184,13 +207,37 @@ export default function AdminDashboardPage() {
   async function openUserDetail(userId) {
     setError('')
     setSelectedUserId(userId)
+    setMatches([])
+    setExpandedMatchId(null)
     try {
       const [detail, notesData] = await Promise.all([getUser(userId), getNotes(userId)])
       setUserDetail(detail)
       setNotes(notesData.notes)
+      loadMatches(userId)
     } catch (err) {
       setError(err.message || 'تعذر جلب تفاصيل المستخدم')
     }
+  }
+
+  async function loadMatches(userId) {
+    setLoadingMatches(true)
+    try {
+      const data = await getMatchesForUser(userId, { limit: 15, status: 'approved,reviewing' })
+      setMatches(data.matches || [])
+    } catch (err) {
+      setMatches([])
+      setError(err.message || 'تعذر جلب المطابقات')
+    } finally {
+      setLoadingMatches(false)
+    }
+  }
+
+  function matchScoreColor(score) {
+    if (score >= 90) return 'text-teal-700 bg-teal-100'
+    if (score >= 75) return 'text-teal-700 bg-teal-50'
+    if (score >= 60) return 'text-gold-700 bg-gold-50'
+    if (score >= 40) return 'text-orange-700 bg-orange-50'
+    return 'text-brick-600 bg-brick-50'
   }
 
   async function handleStatusChange(userId, newStatus) {
@@ -510,8 +557,9 @@ export default function AdminDashboardPage() {
                       <td className="py-3">
                         <button
                           onClick={() => openUserDetail(u.id)}
-                          className="text-teal-700 hover:underline text-right"
+                          className="flex items-center gap-2 text-teal-700 hover:underline text-right"
                         >
+                          <UserAvatar photoUrl={u.photo_url} name={u.full_name} />
                           {u.full_name}
                         </button>
                       </td>
@@ -699,6 +747,93 @@ export default function AdminDashboardPage() {
                     <p className="text-muted text-sm">لا توجد إجابات مفتوحة بعد</p>
                   )}
                 </div>
+              </div>
+
+              <div className="border-t border-teal-100 pt-6 mt-6">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <h3 className="font-display text-base text-teal-700">المطابقات المقترحة</h3>
+                  <button
+                    type="button"
+                    onClick={() => loadMatches(userDetail.user.id)}
+                    disabled={loadingMatches}
+                    className="text-sm text-teal-600 hover:underline disabled:opacity-50"
+                  >
+                    {loadingMatches ? 'جارٍ التحديث...' : 'تحديث'}
+                  </button>
+                </div>
+
+                {loadingMatches && matches.length === 0 && (
+                  <p className="text-muted text-sm">جارٍ حساب المطابقات...</p>
+                )}
+
+                {!loadingMatches && matches.length === 0 && (
+                  <p className="text-muted text-sm">لا توجد مطابقات من الجنس الآخر ضمن الطلبات المعتمدة أو قيد المراجعة.</p>
+                )}
+
+                <ul className="space-y-3">
+                  {matches.map((m) => {
+                    const expanded = expandedMatchId === m.candidate.id
+                    const stages = m.stages || {}
+                    return (
+                      <li key={m.candidate.id} className="border border-teal-100 rounded-xl overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedMatchId(expanded ? null : m.candidate.id)}
+                          className="w-full flex items-center justify-between gap-3 p-4 text-right hover:bg-teal-50/50"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-ink">{m.candidate.full_name}</p>
+                            <p className="text-xs text-muted mt-1">
+                              {m.candidate.code}
+                              {' · '}
+                              {m.candidate.country || '—'}
+                              {' · '}
+                              {m.candidate.age != null ? `${m.candidate.age} سنة` : '—'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {!m.eligible && (
+                              <span className="text-xs text-brick-600 bg-brick-50 px-2 py-1 rounded-lg">غير مؤهل</span>
+                            )}
+                            <span className={`text-sm font-bold px-3 py-1 rounded-lg ${matchScoreColor(m.total_score)}`}>
+                              {m.total_score}/100
+                            </span>
+                            <span className="text-xs text-muted">{m.confidence?.ar}</span>
+                          </div>
+                        </button>
+
+                        {expanded && (
+                          <div className="px-4 pb-4 pt-0 text-sm bg-teal-50/30 border-t border-teal-50">
+                            <div className="grid sm:grid-cols-3 gap-3 mb-3">
+                              <div className="bg-linen rounded-lg p-3">
+                                <p className="text-muted text-xs mb-1">الأهلية (30)</p>
+                                <p className="font-medium">{stages.eligibility?.score ?? 0}/30</p>
+                              </div>
+                              <div className="bg-linen rounded-lg p-3">
+                                <p className="text-muted text-xs mb-1">الاختيارات (40)</p>
+                                <p className="font-medium">{stages.mcq?.score ?? 0}/40</p>
+                              </div>
+                              <div className="bg-linen rounded-lg p-3">
+                                <p className="text-muted text-xs mb-1">المفتوحة (30)</p>
+                                <p className="font-medium">{stages.open_answers?.score ?? 0}/30</p>
+                                {stages.open_answers?.needs_manual_review && (
+                                  <p className="text-xs text-gold-700 mt-1">يُفضّل مراجعة يدوية</p>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openUserDetail(m.candidate.id)}
+                              className="text-teal-600 text-sm hover:underline"
+                            >
+                              عرض ملف المرشح
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
               </div>
             </Card>
           )}

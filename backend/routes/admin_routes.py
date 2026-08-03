@@ -1,6 +1,18 @@
 # backend/routes/admin_routes.py
 from datetime import datetime
 from flask import Blueprint, request, jsonify
+from models import db, User, Admin, AdminNote, Notification
+from utils import photo_url_for
+from security import (
+    admin_required,
+    super_admin_required,
+    get_active_admin,
+    get_active_super_admin,
+    sanitize_text,
+    validate_email,
+    validate_admin_password,
+    MAX_NOTE_LEN,
+)
 from models import db, User, Admin, AdminNote, Notification, ActivityLog, MCQAnswer
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
@@ -78,6 +90,18 @@ def list_users():
     return jsonify({
         'success': True,
         'count': len(users),
+        'users': [{
+            'id': u.id,
+            'code': u.code,
+            'full_name': u.full_name,
+            'gender': u.gender,
+            'country': u.country,
+            'birthday': u.birthday.isoformat() if u.birthday else None,
+            'status': u.status,
+            'assigned_admin_id': u.assigned_admin_id,
+            'created_at': u.created_at.isoformat() if u.created_at else None,
+            'photo_url': photo_url_for(u.photo_path),
+        } for u in users]
         'users': [_user_list_item(u) for u in users]
     }), 200
 

@@ -1,7 +1,7 @@
 # backend/routes/auth_routes.py
 from flask import Blueprint, request, jsonify
 from models import db, User, Admin
-from utils import verify_password, user_needs_onboarding
+from utils import verify_password, user_needs_onboarding, photo_url_for
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -29,7 +29,8 @@ def user_login():
             'code': user.code,
             'full_name': user.full_name,
             'status': user.status,
-            'needs_onboarding': needs_onboarding
+            'needs_onboarding': needs_onboarding,
+            'photo_url': photo_url_for(user.photo_path),
         }
     }), 200
 
