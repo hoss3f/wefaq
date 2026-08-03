@@ -22,11 +22,11 @@ class User(db.Model):
     country = db.Column(db.String(50), nullable=True)
     status = db.Column(db.String(20), default='pending')
     status_reason = db.Column(db.Text, nullable=True)
-    assigned_admin_id = db.Column(db.Integer, nullable=True)
+    assigned_admin_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # علاقات لتسهيل الاستخدام في المراحل القادمة
+    assigned_admin = db.relationship('Admin', foreign_keys=[assigned_admin_id], backref='assigned_users')
     mcq_answers = db.relationship('MCQAnswer', backref='user', uselist=False, cascade='all, delete-orphan')
     open_answers = db.relationship('OpenAnswer', backref='user', uselist=False, cascade='all, delete-orphan')
     notes = db.relationship('AdminNote', backref='user', cascade='all, delete-orphan')
@@ -98,3 +98,18 @@ class Notification(db.Model):
     message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ActivityLog(db.Model):
+    """سجل إجراءات الإداريين على المستخدمين وإدارة الحسابات"""
+    __tablename__ = 'activity_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+    action_type = db.Column(db.String(30), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    admin = db.relationship('Admin', foreign_keys=[admin_id])
+    user = db.relationship('User', foreign_keys=[user_id])

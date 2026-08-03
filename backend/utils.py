@@ -1,7 +1,6 @@
 # backend/utils.py
 import json
 import os
-import random
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import DATA_DIR, DEFAULT_USER_NAME
 
@@ -47,21 +46,26 @@ def verify_password(password_hash, raw_password):
     return check_password_hash(password_hash, raw_password)
 
 
-import random
-
 def generate_user_code(user_model):
     """
-    توليد كود مستخدم مكوّن من 4 أرقام عشوائية بالكامل، بدون خانة تحقق.
-    يتم التأكد من عدم تكرار الكود في قاعدة البيانات قبل اعتماده.
+    توليد كود مستخدم فريد USER###.
+    يعتمد على أعلى رقم موجود وليس على عدد الصفوف، لتجنب التعارض بعد حذف مستخدمين.
     """
-    def build_code():
-        digits = f'{random.randint(0, 9999):04d}'
-        return f'USER{digits}'
+    max_num = 0
+    for (code,) in user_model.query.with_entities(user_model.code).all():
+        if not code or not code.startswith('USER'):
+            continue
+        suffix = code[4:]
+        if suffix.isdigit():
+            max_num = max(max_num, int(suffix))
 
-    candidate = build_code()
+    next_num = max_num + 1
+    candidate = f'USER{next_num:03d}'
     while user_model.query.filter_by(code=candidate).first():
-        candidate = build_code()
+        next_num += 1
+        candidate = f'USER{next_num:03d}'
     return candidate
+
 
 def is_placeholder_name(name):
     """هل الاسم هو الاسم الافتراضي المؤقت؟"""
@@ -73,7 +77,7 @@ def user_needs_onboarding(user, mcq_answer=None):
     المستخدم يحتاج إكمال الطلب إذا نقصت بياناته الأساسية
     أو لم يُجب على الأسئلة بعد (حالة الكود المُولَّد لأول مرة).
     """
-    from models import MCQAnswer, OpenAnswer
+    from models import MCQAnswer
 
     name_ok = bool(user.full_name) and not is_placeholder_name(user.full_name)
     profile_ok = all([
@@ -90,13 +94,7 @@ def user_needs_onboarding(user, mcq_answer=None):
     mcq = mcq_answer
     if mcq is None:
         mcq = MCQAnswer.query.filter_by(user_id=user.id).first()
-
-    open_answer = OpenAnswer.query.filter_by(user_id=user.id).first()
-    open_ok = bool(open_answer and all(
-        str(getattr(open_answer, f'q{i}') or '').strip() for i in range(1, 5)
-    ))
-
-    return not mcq or not mcq.q1 or not open_ok
+    return not mcq or not mcq.q1
 
 
 def sync_user_to_json(user):
@@ -194,3 +192,33 @@ def remove_admin_from_json(email):
     data['admins'] = [a for a in data['admins'] if a.get('email') != email]
     write_json_file('admins.json', data)
     return data
+
+
+def _append_system_log(admin_id, user_id, action_type, details):
+    """كتابة سطر في ملف سجل النظام (إضافة إلى سجل قاعدة البيانات)"""
+    from datetime import datetime
+    from config import SYSTEM_LOG_FILE
+
+    timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    user_part = user_id if user_id is not None else '-'
+    line = (
+        f'[{timestamp}] admin_id={admin_id} user_id={user_part} '
+        f'action={action_type} details={details or ""}\n'
+    )
+    with open(SYSTEM_LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(line)
+
+
+def log_activity(admin_id, user_id, action_type, details):
+    """تسجيل إجراء إداري في قاعدة البيانات وملف سجل النظام (يُكمِت مع الطلب الحالي)"""
+    from models import ActivityLog, db
+
+    entry = ActivityLog(
+        admin_id=admin_id,
+        user_id=user_id,
+        action_type=action_type,
+        details=details or ''
+    )
+    db.session.add(entry)
+    _append_system_log(admin_id, user_id, action_type, details)
+    return entry

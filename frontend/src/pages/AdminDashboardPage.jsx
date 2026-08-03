@@ -14,7 +14,8 @@ import {
   listAdmins,
   deleteUser,
   deleteAdmin,
-  createAdmin
+  createAdmin,
+  assignUserCase
 } from '../services/adminService'
 import { getUser, getQuestions } from '../services/userService'
 
@@ -25,6 +26,13 @@ const AGE_FILTERS = [
   { key: '25to35', label: '25–35' },
   { key: 'over35', label: 'أكبر من 35' }
 ]
+const SCOPE_FILTERS = [
+  { key: 'all', label: 'كل الحالات' },
+  { key: 'mine', label: 'حالاتي فقط' },
+  { key: 'by_admin', label: 'تصفية حسب المسؤول' }
+]
+const EDUCATION_OPTIONS = ['ثانوي', 'دبلوم', 'بكالوريوس', 'ماجستير', 'دكتوراه']
+const FINANCIAL_OPTIONS = ['بسيط', 'متوسط', 'مرتفع', 'لا يهم']
 
 function calcAge(birthday) {
   if (!birthday) return null
@@ -63,6 +71,10 @@ export default function AdminDashboardPage() {
   const [genderFilter, setGenderFilter] = useState('all')
   const [countryFilter, setCountryFilter] = useState('all')
   const [ageFilter, setAgeFilter] = useState('all')
+  const [scopeFilter, setScopeFilter] = useState('all')
+  const [assignedAdminFilter, setAssignedAdminFilter] = useState('')
+  const [educationFilter, setEducationFilter] = useState('')
+  const [financialFilter, setFinancialFilter] = useState('')
   const [selectedUserId, setSelectedUserId] = useState(null)
   const [notes, setNotes] = useState([])
   const [noteText, setNoteText] = useState('')
@@ -77,6 +89,7 @@ export default function AdminDashboardPage() {
   const [admins, setAdmins] = useState([])
   const [adminForm, setAdminForm] = useState(EMPTY_ADMIN_FORM)
   const [creatingAdmin, setCreatingAdmin] = useState(false)
+  const [assigningUserId, setAssigningUserId] = useState(null)
 
   useEffect(() => {
     const stored = localStorage.getItem('wefaq_admin')
@@ -93,16 +106,41 @@ export default function AdminDashboardPage() {
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    if (!admin) return
+    if (!admin.is_super_admin && scopeFilter === 'by_admin') {
+      setScopeFilter('all')
+      setAssignedAdminFilter('')
+    }
+  }, [admin, scopeFilter])
+
+  useEffect(() => {
+    if (!admin) return
+    listAdmins(admin.id)
+      .then((data) => setAdmins(data.admins))
+      .catch(() => {})
+  }, [admin])
+
   async function refreshUsers() {
-    const status = filter === 'all' ? undefined : filter
-    const data = await listUsers(status)
+    const params = {
+      status: filter === 'all' ? undefined : filter,
+      education: educationFilter || undefined,
+      financial: financialFilter || undefined,
+      requestingAdminId: admin.id
+    }
+    if (scopeFilter === 'mine') {
+      params.scope = 'mine'
+    } else if (scopeFilter === 'by_admin' && assignedAdminFilter && admin.is_super_admin) {
+      params.assignedAdminId = Number(assignedAdminFilter)
+    }
+    const data = await listUsers(params)
     setUsers(data.users)
   }
 
   useEffect(() => {
     if (!admin) return
     refreshUsers().catch(() => setError('تعذر جلب قائمة المستخدمين'))
-  }, [admin, filter])
+  }, [admin, filter, scopeFilter, assignedAdminFilter, educationFilter, financialFilter])
 
   useEffect(() => {
     if (!admin?.is_super_admin || panelTab !== 'admins') return
@@ -125,6 +163,17 @@ export default function AdminDashboardPage() {
     })
   }, [users, genderFilter, countryFilter, ageFilter])
 
+  const visibleScopeFilters = useMemo(() => {
+    if (admin?.is_super_admin) return SCOPE_FILTERS
+    return SCOPE_FILTERS.filter((s) => s.key !== 'by_admin')
+  }, [admin])
+
+  function canAssignUser(user) {
+    if (!admin) return false
+    if (admin.is_super_admin) return true
+    return user.assigned_admin_id === admin.id
+  }
+
   function openUserNotes(userId) {
     setSelectedUserId(userId)
     getNotes(userId)
@@ -146,7 +195,7 @@ export default function AdminDashboardPage() {
 
   async function handleStatusChange(userId, newStatus) {
     try {
-      await updateUserStatus(userId, newStatus)
+      await updateUserStatus(userId, newStatus, admin.id)
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)))
       if (userDetail?.user?.id === userId) {
         setUserDetail((prev) => prev ? { ...prev, user: { ...prev.user, status: newStatus } } : prev)
@@ -172,7 +221,7 @@ export default function AdminDashboardPage() {
     setGenerating(true)
     setError('')
     try {
-      const res = await generateUserCode(newUserName.trim())
+      const res = await generateUserCode(newUserName.trim(), admin.id)
       setGeneratedCode(res.user.code)
       setNewUserName('')
       await refreshUsers()
@@ -180,6 +229,21 @@ export default function AdminDashboardPage() {
       setError(err.message)
     } finally {
       setGenerating(false)
+    }
+  }
+
+  async function handleAssignCase(userId, targetAdminId) {
+    if (!userId || !targetAdminId) return
+    setAssigningUserId(userId)
+    setError('')
+    try {
+      const res = await assignUserCase(userId, admin.id, Number(targetAdminId))
+      setUsers((prev) => prev.map((u) => (u.id === userId ? res.user : u)))
+      await refreshUsers()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setAssigningUserId(null)
     }
   }
 
@@ -203,7 +267,7 @@ export default function AdminDashboardPage() {
     setCreatingAdmin(true)
     setError('')
     try {
-      await createAdmin(adminForm)
+      await createAdmin({ ...adminForm, admin_id: admin.id })
       setAdminForm(EMPTY_ADMIN_FORM)
       const data = await listAdmins(admin.id)
       setAdmins(data.admins)
@@ -227,7 +291,6 @@ export default function AdminDashboardPage() {
 
   function handleLogout() {
     localStorage.removeItem('wefaq_admin')
-    localStorage.removeItem('wefaq_admin_credentials')
     navigate('/admin/login')
   }
 
@@ -319,20 +382,17 @@ export default function AdminDashboardPage() {
         </div>
       ) : (
         <>
-          <div className="flex gap-2 mb-4 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2 mb-6">
             {STATUS_FILTERS.map((status) => (
               <button
                 key={status}
                 onClick={() => setFilter(status)}
-                className={`px-4 py-2 rounded-xl text-sm border
+                className={`px-3 py-2 rounded-xl text-sm border whitespace-nowrap
                   ${filter === status ? 'bg-teal-600 text-linen border-teal-600' : 'border-teal-100 text-ink hover:bg-teal-50'}`}
               >
                 {status === 'all' ? 'الكل' : config.statusLabels[status]}
               </button>
             ))}
-          </div>
-
-          <div className="flex gap-3 mb-6 flex-wrap">
             <select
               value={genderFilter}
               onChange={(e) => setGenderFilter(e.target.value)}
@@ -359,6 +419,51 @@ export default function AdminDashboardPage() {
             >
               {AGE_FILTERS.map((a) => (
                 <option key={a.key} value={a.key}>{a.label}</option>
+              ))}
+            </select>
+            {visibleScopeFilters.map((s) => (
+              <button
+                key={s.key}
+                onClick={() => {
+                  setScopeFilter(s.key)
+                  if (s.key !== 'by_admin') setAssignedAdminFilter('')
+                }}
+                className={`px-3 py-2 rounded-xl text-sm border whitespace-nowrap
+                  ${scopeFilter === s.key ? 'bg-teal-600 text-linen border-teal-600' : 'border-teal-100 text-ink hover:bg-teal-50'}`}
+              >
+                {s.label}
+              </button>
+            ))}
+            {admin.is_super_admin && scopeFilter === 'by_admin' && (
+              <select
+                value={assignedAdminFilter}
+                onChange={(e) => setAssignedAdminFilter(e.target.value)}
+                className="rounded-xl border border-teal-100 px-3 py-2 bg-linen text-sm"
+              >
+                <option value="">اختر المسؤول</option>
+                {admins.map((a) => (
+                  <option key={a.id} value={a.id}>{a.full_name}</option>
+                ))}
+              </select>
+            )}
+            <select
+              value={educationFilter}
+              onChange={(e) => setEducationFilter(e.target.value)}
+              className="rounded-xl border border-teal-100 px-3 py-2 bg-linen text-sm"
+            >
+              <option value="">المستوى التعليمي</option>
+              {EDUCATION_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+            <select
+              value={financialFilter}
+              onChange={(e) => setFinancialFilter(e.target.value)}
+              className="rounded-xl border border-teal-100 px-3 py-2 bg-linen text-sm"
+            >
+              <option value="">المستوى المادي</option>
+              {FINANCIAL_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
           </div>
@@ -394,6 +499,7 @@ export default function AdminDashboardPage() {
                   <tr className="text-muted border-b border-teal-100">
                     <th className="text-right py-2">الاسم</th>
                     <th className="text-right py-2">الكود</th>
+                    <th className="text-right py-2">المسؤول</th>
                     <th className="text-right py-2">الحالة</th>
                     <th className="text-right py-2">إجراء</th>
                   </tr>
@@ -410,37 +516,59 @@ export default function AdminDashboardPage() {
                         </button>
                       </td>
                       <td className="py-3">{u.code}</td>
-                      <td className="py-3"><StatusBadge status={u.status} /></td>
                       <td className="py-3">
-                        <select
-                          value={u.status}
-                          onChange={(e) => handleStatusChange(u.id, e.target.value)}
-                          className="border border-teal-100 rounded-lg px-2 py-1 ml-2"
-                        >
-                          {Object.keys(config.statusLabels).map((s) => (
-                            <option key={s} value={s}>{config.statusLabels[s]}</option>
-                          ))}
-                        </select>
-                        <button
-                          onClick={() => openUserNotes(u.id)}
-                          className="text-teal-600 text-sm hover:underline ml-2"
-                        >
-                          الملاحظات
-                        </button>
-                        {admin.is_super_admin && (
+                        {canAssignUser(u) ? (
+                          <select
+                            value={u.assigned_admin_id ? String(u.assigned_admin_id) : ''}
+                            onChange={(e) => {
+                              const nextId = e.target.value
+                              if (nextId && Number(nextId) !== u.assigned_admin_id) {
+                                handleAssignCase(u.id, nextId)
+                              }
+                            }}
+                            disabled={assigningUserId === u.id}
+                            className="w-full min-w-[120px] max-w-[160px] border border-teal-100 rounded-lg px-2 py-1 text-sm bg-linen disabled:opacity-60"
+                          >
+                            <option value="">—</option>
+                            {admins.map((a) => (
+                              <option key={a.id} value={a.id}>{a.full_name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-muted">{u.assigned_admin_name || '—'}</span>
+                        )}
+                      </td>
+                      <td className="py-3"><StatusBadge status={u.status} /></td>
+                      <td className="py-3 whitespace-nowrap">
+                        <div className="inline-flex flex-row flex-nowrap items-center gap-2">
+                          <select
+                            value={u.status}
+                            onChange={(e) => handleStatusChange(u.id, e.target.value)}
+                            className="shrink-0 border border-teal-100 rounded-lg px-2 py-1 text-sm bg-linen"
+                          >
+                            {Object.keys(config.statusLabels).map((s) => (
+                              <option key={s} value={s}>{config.statusLabels[s]}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => openUserNotes(u.id)}
+                            className="shrink-0 text-teal-600 text-sm hover:underline"
+                          >
+                            الملاحظات
+                          </button>
                           <button
                             onClick={() => handleDeleteUser(u.id, u.full_name)}
-                            className="text-brick-500 text-sm hover:underline ml-2"
+                            className="shrink-0 text-brick-500 text-sm hover:underline"
                           >
                             حذف
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-6 text-center text-muted">لا يوجد طلبات ضمن هذا التصنيف</td>
+                      <td colSpan={5} className="py-6 text-center text-muted">لا يوجد طلبات ضمن هذا التصنيف</td>
                     </tr>
                   )}
                 </tbody>
