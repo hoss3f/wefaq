@@ -47,6 +47,9 @@ export default function CompleteApplicationPage() {
   const [index, setIndex] = useState(0)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [phoneCode, setPhoneCode] = useState('+974')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [phoneParsed, setPhoneParsed] = useState(false)
 
   useEffect(() => {
     const session = JSON.parse(localStorage.getItem('wefaq_user') || 'null')
@@ -54,7 +57,7 @@ export default function CompleteApplicationPage() {
     setUserId(session.id)
     Promise.all([getUser(session.id), getQuestions()]).then(([data, questionData]) => {
       if (!data.user.needs_onboarding) return navigate('/dashboard', { replace: true })
-      setPersonal({ full_name: displayName(data.user.full_name), birthday: data.user.birthday || '', gender: data.user.gender || '', country: data.user.country || '' })
+      setPersonal({ full_name: displayName(data.user.full_name), birthday: data.user.birthday || '', gender: data.user.gender || '', country: data.user.country || '', phone: data.user.phone || '', email: data.user.email || '' })
       const preferenceQuestion = questionData.questions.onboarding?.steps.find((item) => item.type === 'preferences')
       const rangeDefaults = Object.fromEntries((preferenceQuestion?.fields || [])
         .filter((field) => field.type === 'range')
@@ -64,6 +67,28 @@ export default function CompleteApplicationPage() {
       setQuestionSet(questionData.questions)
     }).catch(() => setError('تعذر تحميل بيانات الطلب'))
   }, [navigate])
+
+  useEffect(() => {
+    if (phoneParsed) return
+    const contactStep = questionSet?.onboarding?.steps.find((item) => item.type === 'contact')
+    if (!contactStep) return
+    const raw = personal.phone || ''
+    const codes = contactStep.country_codes || []
+    const match = codes.find((item) => raw.startsWith(item.code))
+    if (match) {
+      setPhoneCode(match.code)
+      setPhoneNumber(raw.slice(match.code.length))
+    } else {
+      setPhoneNumber(raw)
+    }
+    setPhoneParsed(true)
+  }, [questionSet, personal, phoneParsed])
+
+  function updatePhone(code, number) {
+    setPhoneCode(code)
+    setPhoneNumber(number)
+    setPersonal((old) => ({ ...old, phone: `${code}${number}`.trim() }))
+  }
 
   const onboarding = questionSet?.onboarding
   const steps = useMemo(() => {
@@ -81,6 +106,7 @@ export default function CompleteApplicationPage() {
   function valid() {
     if (!question?.required) return true
     if (question.type === 'preferences') return question.fields.filter((field) => field.type !== 'range' && !field.optional).every((field) => !!details[field.key])
+    if (question.type === 'contact') return !!phoneNumber?.trim()
     if (question.openNumber) return !!answers[`q${question.openNumber}`]?.trim()
     return !!getValue(question)?.toString().trim()
   }
@@ -113,6 +139,24 @@ export default function CompleteApplicationPage() {
       ? <textarea autoFocus rows="6" value={answers[`q${question.openNumber}`] || ''} onChange={(event) => setAnswers((old) => ({ ...old, [`q${question.openNumber}`]: event.target.value }))} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />
       : <textarea autoFocus rows="6" value={value || ''} onChange={(event) => setValue(question, event.target.value)} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />
     if (question.type === 'preferences') return renderPreferences()
+    if (question.type === 'contact') {
+      const codes = question.country_codes || []
+      return <div className="space-y-8">
+        <div>
+          <b className="mb-3 block text-teal-700">{question.phone_label}</b>
+          <div className="flex items-center gap-3 border-b-2 border-teal-100 focus-within:border-gold-500">
+            <select value={phoneCode} onChange={(event) => updatePhone(event.target.value, phoneNumber)} className="bg-transparent py-4 text-lg font-bold text-teal-700 outline-none">
+              {codes.map((item) => <option key={item.code} value={item.code}>{item.code} {item.name}</option>)}
+            </select>
+            <input autoFocus type="tel" value={phoneNumber} onChange={(event) => updatePhone(phoneCode, event.target.value)} placeholder={question.phone_placeholder} className="w-full bg-transparent py-4 text-2xl outline-none placeholder:text-muted/70" />
+          </div>
+        </div>
+        <div>
+          <b className="mb-3 block text-teal-700">{question.email_label}</b>
+          <input type="email" value={personal.email || ''} onChange={(event) => setPersonal((old) => ({ ...old, email: event.target.value }))} placeholder={question.email_placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-2xl outline-none focus:border-gold-500" />
+        </div>
+      </div>
+    }
     return <input autoFocus value={value || ''} onChange={(event) => setValue(question, event.target.value)} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-2xl outline-none focus:border-gold-500" />
   }
 
