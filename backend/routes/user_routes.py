@@ -1,7 +1,7 @@
 # backend/routes/user_routes.py
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from models import db, User, MCQAnswer, OpenAnswer, AdminNote
+from models import db, User, UserProfile, MCQAnswer, OpenAnswer, AdminNote
 from utils import (
     load_questions,
     generate_user_code,
@@ -14,7 +14,7 @@ from utils import (
 
 user_bp = Blueprint('user', __name__, url_prefix='/api')
 
-REQUIRED_FIELDS = ['full_name', 'phone', 'email', 'birthday', 'gender', 'country']
+REQUIRED_FIELDS = ['full_name', 'birthday', 'gender', 'country']
 UPDATABLE_FIELDS = [
     'full_name', 'phone', 'email', 'gender', 'country',
     'guardian_phone', 'guardian_relation'
@@ -42,13 +42,19 @@ def _apply_personal_data(user, data):
         return False, {'success': False, 'message': 'صيغة تاريخ الميلاد غير صحيحة'}, 400
 
     user.full_name = data['full_name'].strip()
-    user.phone = data['phone']
-    user.email = data['email']
     user.birthday = birthday
     user.gender = data['gender']
     user.country = data['country']
-    user.guardian_phone = data.get('guardian_phone', '') or ''
-    user.guardian_relation = data.get('guardian_relation', '') or ''
+    details = data.get('profile_details') or {}
+    if not isinstance(details, dict):
+        return False, {'success': False, 'message': 'Profile details are invalid'}, 400
+    required_details = ['nationality', 'profession', 'marital_status', 'marriage_timeline', 'height', 'weight']
+    missing_details = [field for field in required_details if not details.get(field)]
+    if missing_details:
+        return False, {'success': False, 'message': 'Profile fields are missing', 'missing_fields': missing_details}, 400
+    profile = UserProfile.query.filter_by(user_id=user.id).first() or UserProfile(user_id=user.id)
+    profile.details = details
+    db.session.add(profile)
     if 'photo_path' in data:
         user.photo_path = data.get('photo_path') or ''
     return True, None, None
@@ -152,11 +158,6 @@ def register_user():
         guardian_relation=sanitize_text(data.get('guardian_relation', ''), 50),
         photo_path=photo_path,
         country=sanitize_text(data['country'], 50),
-        gender=data['gender'],
-        guardian_phone=data.get('guardian_phone', ''),
-        guardian_relation=data.get('guardian_relation', ''),
-        photo_path=data.get('photo_path', ''),
-        country=data['country'],
         status='pending'
     )
     db.session.add(new_user)
@@ -208,8 +209,8 @@ def complete_application(user_id):
     if not ok:
         return jsonify(err_body), err_code
 
-    if not all(mcq_data.get(f'q{i}') for i in range(1, 5)):
-        return jsonify({'success': False, 'message': 'الرجاء إكمال أسئلة الاختيار جميعها'}), 400
+    if not all(open_data.get(f'q{i}') for i in range(1, 5)):
+        return jsonify({'success': False, 'message': 'الرجاء الإجابة عن جميع الأسئلة المفتوحة'}), 400
 
     _upsert_answers(user_id, mcq_data, open_data)
     user.status = 'reviewing'
@@ -226,6 +227,7 @@ def complete_application(user_id):
         'mcq_answers': {
             'q1': mcq.q1, 'q2': mcq.q2, 'q3': mcq.q3, 'q4': mcq.q4
         } if mcq else None,
+        'profile_details': user.profile.details if user.profile else {},
         'open_answers': {
             'q1': open_ans.q1, 'q2': open_ans.q2, 'q3': open_ans.q3, 'q4': open_ans.q4
         } if open_ans else None
@@ -256,6 +258,7 @@ def get_user(user_id):
         'mcq_answers': {
             'q1': mcq.q1, 'q2': mcq.q2, 'q3': mcq.q3, 'q4': mcq.q4
         } if mcq else None,
+        'profile_details': user.profile.details if user.profile else {},
         'open_answers': {
             'q1': open_ans.q1, 'q2': open_ans.q2, 'q3': open_ans.q3, 'q4': open_ans.q4
         } if open_ans else None,

@@ -31,6 +31,17 @@ class User(db.Model):
     open_answers = db.relationship('OpenAnswer', backref='user', uselist=False, cascade='all, delete-orphan')
     notes = db.relationship('AdminNote', backref='user', cascade='all, delete-orphan')
     notifications = db.relationship('Notification', backref='user', cascade='all, delete-orphan')
+    profile = db.relationship('UserProfile', backref='user', uselist=False, cascade='all, delete-orphan')
+
+
+class UserProfile(db.Model):
+    """Extended one-question-at-a-time onboarding data."""
+    __tablename__ = 'user_profiles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=False)
+    details = db.Column(db.JSON, nullable=False, default=dict)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class MCQAnswer(db.Model):
