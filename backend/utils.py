@@ -6,6 +6,7 @@ import random
 import smtplib
 import uuid
 from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import DATA_DIR, DEFAULT_USER_NAME, UPLOAD_DIR, ALLOWED_PHOTO_EXTENSIONS
 
@@ -188,9 +189,9 @@ def _welcome_email_html(user):
             نتوقع الرد عليك خلال <b>3 أيام تقريباً</b> من تاريخ التقديم، وستصلك إشعار فور تحديث حالة طلبك.
           </p>
           <blockquote style="border-right: 4px solid #C9A15A; padding-right: 16px; margin: 24px 0; color: #4B5A54; font-style: italic;">
-            قال رسول الله ﷺ: «واعلم أنّ النصر مع الصبر، وأنّ الفرج مع الكرب، وأنّ مع العسر يسرًا»
+            قال رسول الله ﷺ: «ثلاثةٌ حقٌّ على الله عونهم، ومنهم: الناكحُ الذي يريد العفاف»
             <br />
-            <span style="font-size: 13px; color: #7A867F;">(رواه الترمذي، وقال: حديث حسن صحيح)</span>
+            <span style="font-size: 13px; color: #7A867F;">(رواه الترمذي والنسائي وابن ماجه عن أبي هريرة، وصححه الألباني)</span>
           </blockquote>
           <p>
             نسأل الله أن ييسّر لك ما فيه خير لدينك ودنياك، وأن يرزقك شريك الحياة الصالح في وقته المبارك.
@@ -224,6 +225,8 @@ def send_welcome_email(user):
     message['Subject'] = 'تم استلام طلبك بنجاح 🌿'
     message['From'] = smtp_from
     message['To'] = user.email
+    message['Date'] = formatdate(localtime=True)
+    message['Message-ID'] = make_msgid(domain=smtp_from.split('@')[-1])
 
     try:
         with smtplib.SMTP(smtp_host, int(smtp_port), timeout=10) as server:
