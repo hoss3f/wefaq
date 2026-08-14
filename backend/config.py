@@ -22,5 +22,10 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 SECRET_KEY = 'wefaq-secret-key-change-in-production'
 
+# Runtime options consumed by app.py.  Keep development permissive by default,
+# while allowing deployments and tests to override them through environment vars.
+CORS_ORIGINS = os.environ.get('WEFAQ_CORS_ORIGINS', '*')
+TESTING = os.environ.get('WEFAQ_TESTING', '').strip().lower() in {'1', 'true', 'yes'}
+
 # الاسم الافتراضي عند توليد كود بدون اسم مخصص
 DEFAULT_USER_NAME = 'متقدم جديد'

@@ -102,7 +102,6 @@ def list_users():
             'created_at': u.created_at.isoformat() if u.created_at else None,
             'photo_url': photo_url_for(u.photo_path),
         } for u in users]
-        'users': [_user_list_item(u) for u in users]
     }), 200
 
 

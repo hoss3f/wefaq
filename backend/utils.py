@@ -111,24 +111,22 @@ def user_needs_onboarding(user, mcq_answer=None):
     المستخدم يحتاج إكمال الطلب إذا نقصت بياناته الأساسية
     أو لم يُجب على الأسئلة بعد (حالة الكود المُولَّد لأول مرة).
     """
-    from models import MCQAnswer
+    from models import OpenAnswer, UserProfile
 
     name_ok = bool(user.full_name) and not is_placeholder_name(user.full_name)
+    profile = UserProfile.query.filter_by(user_id=user.id).first()
+    details = profile.details if profile else {}
     profile_ok = all([
-        name_ok,
-        user.email,
-        user.phone,
-        user.birthday,
-        user.gender,
-        user.country
+        name_ok, user.birthday, user.gender, user.country,
+        details.get('nationality'), details.get('profession'),
+        details.get('marital_status'), details.get('marriage_timeline'),
+        details.get('height'), details.get('weight')
     ])
     if not profile_ok:
         return True
 
-    mcq = mcq_answer
-    if mcq is None:
-        mcq = MCQAnswer.query.filter_by(user_id=user.id).first()
-    return not mcq or not mcq.q1
+    open_answers = OpenAnswer.query.filter_by(user_id=user.id).first()
+    return not open_answers or not all(getattr(open_answers, f'q{i}', None) for i in range(1, 5))
 
 
 def sync_user_to_json(user):
