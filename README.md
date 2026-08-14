@@ -81,7 +81,7 @@ wefaq/
 
 ## 🚀 التشغيل
 
-### 1. الخادم الخلفي
+### 1. الخادم 
 ```bash
 cd backend
 python -m venv venv
