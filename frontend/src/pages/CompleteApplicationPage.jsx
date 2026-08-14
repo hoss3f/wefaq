@@ -2,15 +2,33 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getQuestions, getUser, completeApplication } from '../services/userService'
 
+const PLACEHOLDER_NAME = 'متقدم جديد'
+function displayName(name) {
+  if (!name || name.trim() === PLACEHOLDER_NAME) return ''
+  return name
+}
+
 function ChoiceCards({ options, value, onChange, chips = false }) {
   return <div className={chips ? 'flex flex-wrap gap-2' : 'space-y-3'}>{options.map((item) => <button key={item} type="button" onClick={() => onChange(item)} className={chips ? `rounded-full border px-4 py-2 font-medium transition-colors ${value === item ? 'border-teal-600 bg-teal-600 text-linen' : 'border-teal-100 bg-white text-ink hover:bg-teal-50'}` : `flex min-h-20 w-full items-center justify-between rounded-2xl border-2 px-5 text-right transition-colors ${value === item ? 'border-gold-500 bg-gold-100/40 text-teal-700' : 'border-teal-100 bg-white text-ink hover:border-teal-300'}`}><b>{item}</b>{!chips && <span className={`h-6 w-6 rounded-full border ${value === item ? 'border-teal-600 bg-teal-600 shadow-[inset_0_0_0_5px_#FAF8F4]' : 'border-teal-300'}`} />}</button>)}</div>
 }
 
 function SearchSelector({ question, value, onChange, otherOption }) {
   const [query, setQuery] = useState('')
+  const isCustom = !!value && !(question.options || []).includes(value)
+  const [customMode, setCustomMode] = useState(isCustom)
+  const showCustomInput = customMode || isCustom
   const matches = (question.options || []).filter((item) => item.toLowerCase().includes(query.trim().toLowerCase()))
   const choices = [...matches.filter((item) => item !== otherOption), otherOption]
-  return <div><div className="flex items-center gap-3 border-b border-teal-100 py-3 text-muted"><span className="text-2xl">⌕</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={question.placeholder} className="w-full bg-transparent text-lg outline-none placeholder:text-muted/70" /></div><div className="mt-5 max-h-80 space-y-1 overflow-y-auto">{choices.map((item) => <button key={item} type="button" onClick={() => onChange(item)} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-right text-lg transition-colors ${value === item ? 'bg-teal-50 font-bold text-teal-700' : 'text-ink hover:bg-linen'}`}>{item}<span className={`h-5 w-5 rounded-md border ${value === item ? 'border-gold-500 bg-gold-500' : 'border-teal-100'}`} /></button>)}</div></div>
+  function pick(item) {
+    if (item === otherOption) {
+      setCustomMode(true)
+      if (!isCustom) onChange('')
+    } else {
+      setCustomMode(false)
+      onChange(item)
+    }
+  }
+  return <div><div className="flex items-center gap-3 border-b border-teal-100 py-3 text-muted"><span className="text-2xl">⌕</span><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={question.placeholder} className="w-full bg-transparent text-lg outline-none placeholder:text-muted/70" /></div><div className="mt-5 max-h-80 space-y-1 overflow-y-auto">{choices.map((item) => <button key={item} type="button" onClick={() => pick(item)} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-right text-lg transition-colors ${(value === item || (item === otherOption && showCustomInput)) ? 'bg-teal-50 font-bold text-teal-700' : 'text-ink hover:bg-linen'}`}>{item}<span className={`h-5 w-5 rounded-md border ${(value === item || (item === otherOption && showCustomInput)) ? 'border-gold-500 bg-gold-500' : 'border-teal-100'}`} /></button>)}</div>{showCustomInput && <input autoFocus value={value || ''} onChange={(event) => onChange(event.target.value)} placeholder={otherOption} className="mt-4 w-full border-b-2 border-teal-100 bg-transparent py-3 text-lg outline-none focus:border-gold-500" />}</div>
 }
 
 function RangeField({ field, details, setDetail }) {
@@ -36,7 +54,7 @@ export default function CompleteApplicationPage() {
     setUserId(session.id)
     Promise.all([getUser(session.id), getQuestions()]).then(([data, questionData]) => {
       if (!data.user.needs_onboarding) return navigate('/dashboard', { replace: true })
-      setPersonal({ full_name: data.user.full_name || '', birthday: data.user.birthday || '', gender: data.user.gender || '', country: data.user.country || '' })
+      setPersonal({ full_name: displayName(data.user.full_name), birthday: data.user.birthday || '', gender: data.user.gender || '', country: data.user.country || '' })
       const preferenceQuestion = questionData.questions.onboarding?.steps.find((item) => item.type === 'preferences')
       const rangeDefaults = Object.fromEntries((preferenceQuestion?.fields || [])
         .filter((field) => field.type === 'range')
@@ -62,7 +80,7 @@ export default function CompleteApplicationPage() {
 
   function valid() {
     if (!question?.required) return true
-    if (question.type === 'preferences') return question.fields.filter((field) => field.type !== 'range').every((field) => !!details[field.key])
+    if (question.type === 'preferences') return question.fields.filter((field) => field.type !== 'range' && !field.optional).every((field) => !!details[field.key])
     if (question.openNumber) return !!answers[`q${question.openNumber}`]?.trim()
     return !!getValue(question)?.toString().trim()
   }
@@ -91,11 +109,13 @@ export default function CompleteApplicationPage() {
     if (question.type === 'search') return <SearchSelector question={question} value={value} onChange={(selected) => setValue(question, selected)} otherOption={onboarding.other_option} />
     if (question.type === 'date') return <input autoFocus type="date" value={value || ''} onChange={(event) => setValue(question, event.target.value)} className="w-full rounded-xl border border-teal-100 bg-white p-5 text-xl outline-none focus:border-gold-500" />
     if (question.type === 'number') return <div className="relative"><input autoFocus type="number" min="1" value={value || ''} onChange={(event) => setValue(question, event.target.value)} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-5xl font-bold text-teal-700 outline-none focus:border-gold-500" />{question.suffix && <span className="absolute bottom-5 left-0 text-xl text-muted">{question.suffix}</span>}</div>
-    if (question.type === 'textarea') return <textarea autoFocus rows="6" value={answers[`q${question.openNumber}`] || ''} onChange={(event) => setAnswers((old) => ({ ...old, [`q${question.openNumber}`]: event.target.value }))} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />
+    if (question.type === 'textarea') return question.openNumber
+      ? <textarea autoFocus rows="6" value={answers[`q${question.openNumber}`] || ''} onChange={(event) => setAnswers((old) => ({ ...old, [`q${question.openNumber}`]: event.target.value }))} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />
+      : <textarea autoFocus rows="6" value={value || ''} onChange={(event) => setValue(question, event.target.value)} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />
     if (question.type === 'preferences') return renderPreferences()
     return <input autoFocus value={value || ''} onChange={(event) => setValue(question, event.target.value)} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-2xl outline-none focus:border-gold-500" />
   }
 
   if (!question) return <p className="py-20 text-center text-muted">{ui.loading || '...'}</p>
-  return <main dir="rtl" className="min-h-[calc(100vh-64px)] bg-linen text-ink"><div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-xl flex-col px-6 pb-8 pt-7"><header dir="ltr" className="flex items-center gap-5"><button type="button" aria-label={ui.back} disabled={index === 0} onClick={() => setIndex((current) => Math.max(0, current - 1))} className="text-3xl text-teal-700 disabled:text-teal-100">‹</button><div className="h-1 flex-1 overflow-hidden rounded-full bg-teal-100"><div className="h-full rounded-full bg-gold-500 transition-all" style={{ width: `${((index + 1) / steps.length) * 100}%` }} /></div><span className="font-display text-xl text-teal-700">و</span></header><div className="flex-1 pt-16"><p className="mb-3 text-sm text-muted">{index + 1} {ui.progress} {steps.length}</p><h1 className="font-display text-3xl font-bold leading-tight text-teal-700 sm:text-4xl">{question.title}</h1>{question.description && <p className="mt-3 text-lg leading-relaxed text-muted">{question.description}</p>}<div className="mt-10">{renderQuestion()}</div>{error && <p className="mt-4 text-sm text-brick-500">{error}</p>}</div><button type="button" onClick={next} disabled={loading} className="mt-8 w-full rounded-xl bg-teal-600 px-6 py-4 text-lg font-bold text-linen transition-colors hover:bg-teal-700 disabled:bg-teal-100 disabled:text-muted">{loading ? ui.submitting : index === steps.length - 1 ? ui.submit : ui.continue}</button></div></main>
+  return <main dir="rtl" className="min-h-[calc(100vh-64px)] bg-linen text-ink"><div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-xl flex-col px-6 pb-8 pt-7"><header dir="ltr" className="flex items-center gap-5"><button type="button" aria-label={ui.back} disabled={index === 0} onClick={() => setIndex((current) => Math.max(0, current - 1))} className="text-3xl text-teal-700 disabled:text-teal-100">‹</button><div className="h-1 flex-1 overflow-hidden rounded-full bg-teal-100"><div className="h-full rounded-full bg-gold-500 transition-all" style={{ width: `${((index + 1) / steps.length) * 100}%` }} /></div><span className="font-display text-xl text-teal-700">و</span></header><div className="flex-1 pt-16"><p className="mb-3 text-sm text-muted">{index + 1} {ui.progress} {steps.length}</p><h1 className="font-display text-3xl font-bold leading-tight text-teal-700 sm:text-4xl">{question.title}</h1>{question.description && <p className="mt-3 text-lg leading-relaxed text-muted">{question.description}</p>}<div className={`mt-10 ${error ? 'rounded-2xl ring-2 ring-brick-500 ring-offset-4 ring-offset-linen' : ''}`}>{renderQuestion()}</div>{error && <p className="mt-4 flex items-center gap-2 text-sm font-medium text-brick-500"><span aria-hidden="true">⚠</span>{error}</p>}</div><button type="button" onClick={next} disabled={loading} className="mt-8 w-full rounded-xl bg-teal-600 px-6 py-4 text-lg font-bold text-linen transition-colors hover:bg-teal-700 disabled:bg-teal-100 disabled:text-muted">{loading ? ui.submitting : index === steps.length - 1 ? ui.submit : ui.continue}</button></div></main>
 }

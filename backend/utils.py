@@ -1,10 +1,15 @@
 # backend/utils.py
 import json
+import logging
 import os
 import random
+import smtplib
 import uuid
+from email.mime.text import MIMEText
 from werkzeug.security import generate_password_hash, check_password_hash
 from config import DATA_DIR, DEFAULT_USER_NAME, UPLOAD_DIR, ALLOWED_PHOTO_EXTENSIONS
+
+logger = logging.getLogger(__name__)
 
 
 def read_json_file(filename):
@@ -164,6 +169,69 @@ def remove_user_from_json(user_id):
     users = load_users() or []
     users = [u for u in users if u.get('id') != user_id]
     write_json_file('users.json', users)
+
+
+def _welcome_email_html(user):
+    """بناء محتوى بريد الترحيب بصيغة HTML بالعربية (RTL) بعد إكمال الطلب"""
+    name = user.full_name or 'عزيزنا المتقدم'
+    return f"""
+    <html dir="rtl" lang="ar">
+      <body style="font-family: Tahoma, Arial, sans-serif; background-color: #FAF8F4; color: #22302C; padding: 24px;">
+        <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #E5DFD3;">
+          <h2 style="color: #1F4741; margin-top: 0;">تم استلام طلبك بنجاح 🌿</h2>
+          <p>السلام عليكم ورحمة الله وبركاته، {name}،</p>
+          <p>
+            نبارك لك إتمام طلب التقدّم في منصة <b>وِفاق</b>. لقد استلمنا جميع بياناتك وإجاباتك بنجاح،
+            وسيتولى فريقنا الإداري مراجعة طلبك بعناية واهتمام.
+          </p>
+          <p>
+            نتوقع الرد عليك خلال <b>3 أيام تقريباً</b> من تاريخ التقديم، وستصلك إشعار فور تحديث حالة طلبك.
+          </p>
+          <blockquote style="border-right: 4px solid #C9A15A; padding-right: 16px; margin: 24px 0; color: #4B5A54; font-style: italic;">
+            قال رسول الله ﷺ: «واعلم أنّ النصر مع الصبر، وأنّ الفرج مع الكرب، وأنّ مع العسر يسرًا»
+            <br />
+            <span style="font-size: 13px; color: #7A867F;">(رواه الترمذي، وقال: حديث حسن صحيح)</span>
+          </blockquote>
+          <p>
+            نسأل الله أن ييسّر لك ما فيه خير لدينك ودنياك، وأن يرزقك شريك الحياة الصالح في وقته المبارك.
+          </p>
+          <p style="margin-top: 32px;">مع خالص التحية،<br /><b>فريق وِفاق</b></p>
+        </div>
+      </body>
+    </html>
+    """
+
+
+def send_welcome_email(user):
+    """
+    إرسال بريد ترحيبي للمتقدم بعد إكمال طلبه بنجاح.
+    لا يوقف تنفيذ الطلب عند فشل الإرسال أو عدم توفر إعدادات SMTP — يُسجَّل الخطأ فقط.
+    """
+    if not user.email:
+        return
+
+    smtp_host = os.environ.get('SMTP_HOST', '').strip()
+    smtp_port = os.environ.get('SMTP_PORT', '').strip()
+    smtp_user = os.environ.get('SMTP_USER', '').strip()
+    smtp_password = os.environ.get('SMTP_PASSWORD', '')
+    smtp_from = os.environ.get('SMTP_FROM', '').strip() or smtp_user
+
+    if not all([smtp_host, smtp_port, smtp_user, smtp_password]):
+        logger.warning('إعدادات SMTP غير مكتملة — تم تخطي إرسال بريد الترحيب إلى %s', user.email)
+        return
+
+    message = MIMEText(_welcome_email_html(user), 'html', 'utf-8')
+    message['Subject'] = 'تم استلام طلبك بنجاح 🌿'
+    message['From'] = smtp_from
+    message['To'] = user.email
+
+    try:
+        with smtplib.SMTP(smtp_host, int(smtp_port), timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_from, [user.email], message.as_string())
+    except Exception:
+        logger.exception('فشل إرسال بريد الترحيب إلى %s', user.email)
 
 
 def _normalize_admins_file(data):
