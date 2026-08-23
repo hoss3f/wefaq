@@ -14,6 +14,7 @@ from security import (
     MAX_NOTE_LEN,
 )
 from models import db, User, Admin, AdminNote, Notification, ActivityLog, MCQAnswer
+from sqlalchemy.orm import joinedload
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
@@ -85,7 +86,7 @@ def list_users():
         if financial:
             query = query.filter(MCQAnswer.q2 == financial)
 
-    users = query.order_by(User.created_at.desc()).all()
+    users = query.options(joinedload(User.assigned_admin)).order_by(User.created_at.desc()).all()
 
     return jsonify({
         'success': True,
@@ -141,7 +142,7 @@ def update_status(user_id):
         f'من {old_status} إلى {new_status}'
     )
     db.session.commit()
-    sync_user_to_json(user)
+    # sync_user_to_json(user)
 
     return jsonify({'success': True, 'message': 'تم تحديث الحالة بنجاح'}), 200
 
@@ -243,7 +244,7 @@ def assign_user_case(user_id):
         f'من {old_label} إلى {target_admin.full_name}'
     )
     db.session.commit()
-    sync_user_to_json(user)
+    # sync_user_to_json(user)
 
     return jsonify({
         'success': True,
@@ -457,7 +458,7 @@ def generate_user_code_route():
 
         db.session.add(new_user)
         db.session.flush()
-        sync_user_to_json(new_user)
+        # sync_user_to_json(new_user)
 
         if new_user.assigned_admin_id:
             log_activity(
