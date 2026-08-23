@@ -8,7 +8,7 @@ class User(db.Model):
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(20), unique=True, nullable=False)
+    code = db.Column(db.String(20), unique=True, nullable=False, index=True) #index true added for faster lookups
     full_name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20), nullable=True)
     email = db.Column(db.String(100), nullable=True)
@@ -18,7 +18,7 @@ class User(db.Model):
     guardian_relation = db.Column(db.String(50), nullable=True)
     photo_path = db.Column(db.String(200), nullable=True)
     country = db.Column(db.String(50), nullable=True)
-    status = db.Column(db.String(20), default='pending')
+    status = db.Column(db.String(20), default='pending', index=True)     #index true added for faster lookups
     status_reason = db.Column(db.Text, nullable=True)
     assigned_admin_id = db.Column(db.Integer, db.ForeignKey('admins.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
