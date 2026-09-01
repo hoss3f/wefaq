@@ -16,3 +16,8 @@ export function getMatchesForUser(userId, options = {}) {
 export function scoreUserPair(userAId, userBId) {
   return apiGet(`/admin/matches/pair?user_a=${userAId}&user_b=${userBId}`)
 }
+
+/** Privacy-safe match list for an approved applicant. */
+export function getMyMatches(userId) {
+  return apiGet(`/admin/public/users/${userId}/matches`)
+}

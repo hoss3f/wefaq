@@ -1,7 +1,7 @@
 # backend/routes/matching_routes.py
 from flask import Blueprint, request, jsonify
 from models import User
-from security import admin_required
+from security import admin_required, require_user_self
 from services.matching_service import score_pair, find_matches_for_user, _candidate_summary
 
 matching_bp = Blueprint('matching', __name__, url_prefix='/api/admin')
@@ -35,6 +35,20 @@ def _parse_bool_arg(name: str, default: bool = False) -> bool:
     if raw is None:
         return default
     return raw.lower() in ('1', 'true', 'yes')
+
+
+@matching_bp.route('/public/users/<int:user_id>/matches', methods=['GET'])
+def list_public_matches_for_user(user_id):
+    """Approved candidates may browse approved, privacy-safe candidate summaries."""
+    user, error = require_user_self(user_id)
+    if error:
+        return error
+    if user.status != 'approved':
+        return jsonify({'success': False, 'message': 'تتاح المطابقة بعد اعتماد الطلب.'}), 403
+
+    candidates = User.query.filter(User.status == 'approved', User.id != user.id).all()
+    matches = find_matches_for_user(user, candidates, limit=100, private=True)
+    return jsonify({'success': True, 'count': len(matches), 'matches': matches}), 200
 
 
 @matching_bp.route('/users/<int:user_id>/matches', methods=['GET'])

@@ -1,10 +1,20 @@
 // frontend/src/pages/HomePage.jsx
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import config from '../config.json'
 import MashrabiyaDivider from '../components/MashrabiyaDivider'
 import Card from '../components/Card'
 
 export default function HomePage() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('wefaq_user') || 'null')
+      if (user?.status === 'approved') navigate('/matches', { replace: true })
+    } catch {
+      // تجاهل بيانات الجلسة غير الصالحة وعرض الصفحة العامة.
+    }
+  }, [navigate])
   return (
     <div>
       <section className="max-w-3xl mx-auto text-center px-6 py-20">

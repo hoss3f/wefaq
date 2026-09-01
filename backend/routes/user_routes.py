@@ -62,10 +62,15 @@ def _apply_personal_data(user, data):
 
 def _upsert_answers(user_id, mcq_data, open_data):
     mcq_answer = MCQAnswer.query.filter_by(user_id=user_id).first() or MCQAnswer(user_id=user_id)
-    mcq_answer.q1 = mcq_data.get('q1', mcq_answer.q1 if mcq_answer.id else None)
-    mcq_answer.q2 = mcq_data.get('q2', mcq_answer.q2 if mcq_answer.id else None)
-    mcq_answer.q3 = mcq_data.get('q3', mcq_answer.q3 if mcq_answer.id else None)
-    mcq_answer.q4 = mcq_data.get('q4', mcq_answer.q4 if mcq_answer.id else None)
+    mcq_answer.answers = {
+        **(mcq_answer.answers or {}),
+        **{key: value for key, value in mcq_data.items() if value is not None},
+    }
+    # نواصل ملء الأعمدة القديمة كي لا تتأثر البيانات والمسارات السابقة.
+    for number in range(1, 5):
+        key = f'q{number}'
+        if key in mcq_data:
+            setattr(mcq_answer, key, mcq_data[key])
 
     open_answer = OpenAnswer.query.filter_by(user_id=user_id).first() or OpenAnswer(user_id=user_id)
     open_answer.q1 = open_data.get('q1', open_answer.q1 if open_answer.id else None)

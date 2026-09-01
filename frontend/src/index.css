@@ -15,6 +15,16 @@ body {
   color: #22302C;
 }
 
+.single-range input, .dual-range input { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; cursor: pointer; touch-action: pan-y; }
+.single-range input::-webkit-slider-runnable-track { height: 7px; border-radius: 999px; background: #cfe0dc; }
+.single-range input::-webkit-slider-thumb, .dual-range input::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border: 3px solid #FAF8F4; border-radius: 50%; background: #1F4741; box-shadow: 0 1px 4px #22302c55; }
+.single-range input::-moz-range-track { height: 7px; border-radius: 999px; background: #cfe0dc; }
+.single-range input::-moz-range-thumb, .dual-range input::-moz-range-thumb { width: 22px; height: 22px; border: 3px solid #FAF8F4; border-radius: 50%; background: #1F4741; box-shadow: 0 1px 4px #22302c55; }
+.dual-range { position: relative; height: 28px; }
+.dual-range__track { position: absolute; top: 10px; right: 0; left: 0; height: 7px; border-radius: 999px; background: linear-gradient(to right, #cfe0dc var(--min), #C9A15A var(--min), #C9A15A var(--max), #cfe0dc var(--max)); }
+.dual-range input { position: absolute; inset: 0; pointer-events: none; }
+.dual-range input::-webkit-slider-thumb, .dual-range input::-moz-range-thumb { pointer-events: auto; }
+
 /* نمط الشبكة الهندسية المستوحى من المشربية، يُستخدم كعنصر بصري مميز للمشروع */
 .mashrabiya-bg {
   background-image: theme('backgroundImage.mashrabiya');

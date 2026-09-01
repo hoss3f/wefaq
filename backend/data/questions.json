@@ -1,9 +1,9 @@
 {
   "mcq": [
-    { "id": 1, "question": "ما هو مستواك التعليمي؟", "options": ["ثانوي", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"] },
-    { "id": 2, "question": "ما هو المستوى المادي المناسب لك؟", "options": ["بسيط", "متوسط", "مرتفع", "لا يهم"] },
-    { "id": 3, "question": "هل تفضل الزواج من خارج بلدك؟", "options": ["نعم", "لا", "ليس مهماً"] },
-    { "id": 4, "question": "ما هي الصفة الأكثر أهمية في شريك حياتك؟", "options": ["التدين", "الأخلاق", "المظهر", "الثقافة", "الاستقرار المالي"] }
+    { "id": 1, "question": "ما هو مستواك التعليمي؟", "options": ["ثانوي", "دبلوم", "بكالوريوس", "ماجستير", "دكتوراه"], "matching": true },
+    { "id": 2, "question": "ما هو المستوى المادي المناسب لك؟", "options": ["بسيط", "متوسط", "مرتفع", "لا يهم"], "matching": true },
+    { "id": 3, "question": "هل تفضل الزواج من خارج بلدك؟", "options": ["نعم", "لا", "ليس مهماً"], "matching": true },
+    { "id": 4, "question": "ما هي الصفة الأكثر أهمية في شريك حياتك؟", "options": ["التدين", "الأخلاق", "المظهر", "الثقافة", "الاستقرار المالي"], "matching": true }
   ],
   "open": [
     "صف نفسك في ثلاث كلمات",
@@ -24,7 +24,9 @@
     },
     "other_option": "أخرى",
     "steps": [
-      { "key": "gender", "storage": "personal", "type": "gender", "title": "هل أنت رجل أم امرأة؟", "description": "اختر ما يعبّر عنك.", "required": true, "options": ["ذكر", "أنثى"] },
+      { "key": "is_candidate", "type": "choice", "title": "هل أنت الشخص المعني بالتسجيل؟", "required": true, "options": ["نعم", "لا"] },
+      { "key": "registrant_relation", "type": "choice", "title": "ما صفتك بالنسبة للشخص المعني بالتسجيل؟", "required": true, "show_if": [{ "key": "is_candidate", "equals": "لا" }], "options": ["الأب", "الأم", "الأخ", "الأخت", "ولي الأمر", "أحد أفراد الأسرة", "أخرى"] },
+      { "key": "gender", "storage": "personal", "type": "gender", "title": "هل أنت رجل أم امرأة؟", "description": "يرجى الإجابة عن الأسئلة التالية بما يخص الشخص المعني بالتسجيل.", "required": true, "options": ["ذكر", "أنثى"] },
       { "key": "full_name", "storage": "personal", "type": "text", "title": "ما اسمك الكامل؟", "description": "اكتب اسمك الحقيقي كما تحب أن يظهر للإدارة.", "placeholder": "اكتب اسمك الكامل", "required": true },
       { "key": "birthday", "storage": "personal", "type": "date", "title": "ما تاريخ ميلادك؟", "description": "سنستخدمه للتحقق من العمر والتوافق المناسب.", "required": true },
       { "key": "nationality", "type": "search", "title": "ما جنسيتك؟", "description": "ابحث واختر جنسيتك.", "placeholder": "ابحث عن الجنسية", "required": true, "options": ["قطري", "سعودي", "كويتي", "إماراتي", "بحريني", "عُماني", "مصري", "أردني", "فلسطيني", "سوري", "لبناني", "مغربي", "جزائري", "تونسي", "باكستاني", "هندي"] },
@@ -35,8 +37,8 @@
       { "key": "has_children", "type": "choice", "title": "هل لديك أطفال؟", "required": true, "options": ["لا", "نعم"] },
       { "key": "kids_count", "type": "number", "title": "كم عدد الأطفال؟", "required": true, "show_if": [{ "key": "marital_status", "equals": "متزوج سابقاً" }, { "key": "has_children", "equals": "نعم" }] },
       { "key": "marriage_timeline", "type": "chips", "title": "متى تود أن تتزوج؟", "description": "أود أن أتزوج خلال", "required": true, "options": ["شهر واحد", "3 أشهر", "6 أشهر", "سنة واحدة"] },
-      { "key": "height", "type": "number", "title": "ما طولك؟", "description": "أدخل طولك بالسنتيمتر.", "suffix": "سم", "required": true },
-      { "key": "weight", "type": "number", "title": "ما وزنك؟", "description": "أدخل وزنك بالكيلوغرام.", "suffix": "كغ", "required": true },
+      { "key": "height", "type": "slider", "title": "ما طولك؟", "description": "حرّك المؤشر لاختيار طول الشخص المعني بالتسجيل.", "suffix": "سم", "min": 140, "max": 220, "default": 170, "required": true },
+      { "key": "weight", "type": "slider", "title": "ما وزنك؟", "description": "حرّك المؤشر لاختيار وزن الشخص المعني بالتسجيل.", "suffix": "كغ", "min": 40, "max": 160, "default": 70, "required": true },
       { "key": "chronic_diseases", "type": "choice", "title": "هل لديك أمراض مزمنة؟", "description": "اختر لا للمتابعة إذا لم يكن لديك.", "required": true, "options": ["لا", "نعم"] },
       { "key": "chronic_disease_details", "type": "textarea", "title": "أخبرنا عن الحالة الصحية", "description": "هذه المعلومات خاصة وتُراجع بسرية.", "placeholder": "اكتب التفاصيل هنا", "required": true, "show_if": [{ "key": "chronic_diseases", "equals": "نعم" }] },
       { "key": "disability", "type": "choice", "title": "هل لديك إعاقة؟", "description": "اختر لا للمتابعة إذا لم يكن لديك.", "required": true, "options": ["لا", "نعم"] },

@@ -16,7 +16,20 @@ function SearchSelector({ question, value, onChange, otherOption }) {
 function RangeField({ field, details, setDetail }) {
   const min = details[field.min_key] ?? field.default_min
   const max = details[field.max_key] ?? field.default_max
-  return <div className="rounded-2xl bg-teal-50 p-5"><div className="mb-4 flex justify-between font-bold text-teal-700"><span>{min} {field.unit}</span><span>{max} {field.unit}</span></div><div className="grid grid-cols-2 gap-4"><input type="range" min={field.min} max={field.max} value={min} onChange={(event) => setDetail(field.min_key, Math.min(+event.target.value, max))} /><input type="range" min={field.min} max={field.max} value={max} onChange={(event) => setDetail(field.max_key, Math.max(+event.target.value, min))} /></div></div>
+  const range = field.max - field.min
+  return <div className="rounded-2xl bg-teal-50 p-5"><div className="mb-5 flex justify-between font-bold text-teal-700"><span>الحد الأدنى: {min} {field.unit}</span><span>الحد الأقصى: {max} {field.unit}</span></div><div dir="ltr" className="dual-range" style={{ '--min': `${((min - field.min) / range) * 100}%`, '--max': `${((max - field.min) / range) * 100}%` }}><div className="dual-range__track" /><input aria-label="الحد الأدنى للعمر" type="range" min={field.min} max={field.max} value={min} onChange={(event) => setDetail(field.min_key, Math.min(+event.target.value, max))} /><input aria-label="الحد الأقصى للعمر" type="range" min={field.min} max={field.max} value={max} onChange={(event) => setDetail(field.max_key, Math.max(+event.target.value, min))} /></div></div>
+}
+
+function SliderField({ question, value, onChange }) {
+  const selected = Number(value || question.default || question.min)
+  return <div className="rounded-2xl bg-teal-50 p-5"><div className="mb-5 text-center"><strong className="text-4xl text-teal-700">{selected}</strong><span className="mr-2 text-lg text-muted">{question.suffix}</span></div><div dir="ltr" className="single-range"><input aria-label={question.title} type="range" min={question.min} max={question.max} value={selected} onChange={(event) => onChange(question, +event.target.value)} /></div><div className="mt-3 flex justify-between text-sm text-muted"><span>{question.min} {question.suffix}</span><span>{question.max} {question.suffix}</span></div></div>
+}
+
+function nameValidation(value) {
+  const name = (value || '').trim()
+  if (!name) return 'يرجى إدخال الاسم الكامل.'
+  if (!/^[\u0621-\u064Aa-zA-Z][\u0621-\u064Aa-zA-Z\s'-]{1,99}$/.test(name)) return 'يرجى إدخال اسم صحيح.'
+  return ''
 }
 
 export default function CompleteApplicationPage() {
@@ -25,9 +38,11 @@ export default function CompleteApplicationPage() {
   const [questionSet, setQuestionSet] = useState(null)
   const [personal, setPersonal] = useState({})
   const [details, setDetails] = useState({})
+  const [mcqAnswers, setMcqAnswers] = useState({})
   const [answers, setAnswers] = useState({})
   const [index, setIndex] = useState(0)
   const [error, setError] = useState('')
+  const [nameError, setNameError] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -36,12 +51,13 @@ export default function CompleteApplicationPage() {
     setUserId(session.id)
     Promise.all([getUser(session.id), getQuestions()]).then(([data, questionData]) => {
       if (!data.user.needs_onboarding) return navigate('/dashboard', { replace: true })
-      setPersonal({ full_name: data.user.full_name || '', birthday: data.user.birthday || '', gender: data.user.gender || '', country: data.user.country || '' })
+      setPersonal({ full_name: data.user.full_name === 'متقدم جديد' ? '' : data.user.full_name || '', birthday: data.user.birthday || '', gender: data.user.gender || '', country: data.user.country || '' })
       const preferenceQuestion = questionData.questions.onboarding?.steps.find((item) => item.type === 'preferences')
       const rangeDefaults = Object.fromEntries((preferenceQuestion?.fields || [])
         .filter((field) => field.type === 'range')
         .flatMap((field) => [[field.min_key, field.default_min], [field.max_key, field.default_max]]))
       setDetails({ ...rangeDefaults, ...(data.profile_details || {}) })
+      setMcqAnswers(data.mcq_answers || {})
       setAnswers(data.open_answers || {})
       setQuestionSet(questionData.questions)
     }).catch(() => setError('تعذر تحميل بيانات الطلب'))
@@ -51,30 +67,40 @@ export default function CompleteApplicationPage() {
   const steps = useMemo(() => {
     if (!onboarding) return []
     const configured = onboarding.steps.filter((item) => !item.show_if || item.show_if.every((rule) => details[rule.key] === rule.equals))
+    const matching = (questionSet.mcq || []).filter((item) => item.matching).map((item) => ({
+      key: `q${item.id}`, storage: 'mcq', type: 'choice', title: item.question, options: item.options, required: true,
+    }))
     const open = (questionSet.open || []).map((title, position) => ({ key: `open_${position + 1}`, type: 'textarea', title, placeholder: onboarding.ui.open_placeholder, required: true, openNumber: position + 1 }))
-    return [...configured, ...open]
+    return [...configured, ...matching, ...open]
   }, [onboarding, details, questionSet])
   const question = steps[index]
   const ui = onboarding?.ui || {}
-  const getValue = (item) => item.storage === 'personal' ? personal[item.key] : details[item.key]
-  const setValue = (item, value) => item.storage === 'personal' ? setPersonal((old) => ({ ...old, [item.key]: value })) : setDetails((old) => ({ ...old, [item.key]: value }))
+  const getValue = (item) => item.storage === 'personal' ? personal[item.key] : item.storage === 'mcq' ? mcqAnswers[item.key] : details[item.key]
+  const setValue = (item, value) => {
+    if (item.storage === 'personal') setPersonal((old) => ({ ...old, [item.key]: value }))
+    else if (item.storage === 'mcq') setMcqAnswers((old) => ({ ...old, [item.key]: value }))
+    else setDetails((old) => ({ ...old, [item.key]: value }))
+    if (item.key === 'full_name') setNameError(nameValidation(value))
+  }
   const setDetail = (key, value) => setDetails((old) => ({ ...old, [key]: value }))
 
   function valid() {
     if (!question?.required) return true
     if (question.type === 'preferences') return question.fields.filter((field) => field.type !== 'range').every((field) => !!details[field.key])
     if (question.openNumber) return !!answers[`q${question.openNumber}`]?.trim()
+    if (question.key === 'full_name') return !nameValidation(getValue(question))
     return !!getValue(question)?.toString().trim()
   }
   async function submit() {
     setLoading(true)
     try {
-      const result = await completeApplication(userId, { ...personal, profile_details: details }, {}, answers)
+      const result = await completeApplication(userId, { ...personal, profile_details: details }, mcqAnswers, answers)
       localStorage.setItem('wefaq_user', JSON.stringify({ id: result.user.id, code: result.user.code, full_name: result.user.full_name, status: result.user.status, needs_onboarding: false }))
       navigate('/dashboard', { replace: true })
     } catch (requestError) { setError(requestError.message) } finally { setLoading(false) }
   }
   function next() {
+    if (question?.key === 'full_name') setNameError(nameValidation(getValue(question)))
     if (!valid()) return setError(ui.validation_error)
     setError('')
     if (index === steps.length - 1) return submit()
@@ -90,10 +116,11 @@ export default function CompleteApplicationPage() {
     if (question.type === 'chips') return <ChoiceCards chips options={question.options} value={value} onChange={(selected) => setValue(question, selected)} />
     if (question.type === 'search') return <SearchSelector question={question} value={value} onChange={(selected) => setValue(question, selected)} otherOption={onboarding.other_option} />
     if (question.type === 'date') return <input autoFocus type="date" value={value || ''} onChange={(event) => setValue(question, event.target.value)} className="w-full rounded-xl border border-teal-100 bg-white p-5 text-xl outline-none focus:border-gold-500" />
+    if (question.type === 'slider') return <SliderField question={question} value={value} onChange={setValue} />
     if (question.type === 'number') return <div className="relative"><input autoFocus type="number" min="1" value={value || ''} onChange={(event) => setValue(question, event.target.value)} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-5xl font-bold text-teal-700 outline-none focus:border-gold-500" />{question.suffix && <span className="absolute bottom-5 left-0 text-xl text-muted">{question.suffix}</span>}</div>
     if (question.type === 'textarea') return <textarea autoFocus rows="6" value={answers[`q${question.openNumber}`] || ''} onChange={(event) => setAnswers((old) => ({ ...old, [`q${question.openNumber}`]: event.target.value }))} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />
     if (question.type === 'preferences') return renderPreferences()
-    return <input autoFocus value={value || ''} onChange={(event) => setValue(question, event.target.value)} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-2xl outline-none focus:border-gold-500" />
+    return <><input autoFocus value={value || ''} onChange={(event) => setValue(question, event.target.value)} placeholder={question.placeholder || (question.key === 'full_name' ? 'اكتب الاسم الكامل هنا...' : '')} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-2xl outline-none placeholder:text-muted/60 focus:border-gold-500" />{question.key === 'full_name' && nameError && <p className="mt-3 text-sm text-brick-500">{nameError}</p>}</>
   }
 
   if (!question) return <p className="py-20 text-center text-muted">{ui.loading || '...'}</p>

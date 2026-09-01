@@ -20,6 +20,8 @@ export default function UserLoginPage() {
       localStorage.setItem('wefaq_user', JSON.stringify(data.user))
       if (data.user.needs_onboarding) {
         navigate('/complete-application', { replace: true })
+      } else if (data.user.status === 'approved') {
+        navigate('/matches', { replace: true })
       } else {
         navigate('/dashboard', { replace: true })
       }

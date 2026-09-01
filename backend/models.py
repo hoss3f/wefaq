@@ -54,6 +54,8 @@ class MCQAnswer(db.Model):
     q2 = db.Column(db.String(50))
     q3 = db.Column(db.String(50))
     q4 = db.Column(db.String(50))
+    # مرجع الإجابات المرن؛ تبقى الأعمدة السابقة لتوافق البيانات الحالية.
+    answers = db.Column(db.JSON, nullable=False, default=dict)
 
 
 class OpenAnswer(db.Model):

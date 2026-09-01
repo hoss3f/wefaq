@@ -1,6 +1,7 @@
 # backend/app.py
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+from sqlalchemy import text
 from config import (
     SQLALCHEMY_DATABASE_URI,
     SQLALCHEMY_TRACK_MODIFICATIONS,
@@ -14,7 +15,7 @@ from datetime import datetime
 from flask import Flask
 from flask_cors import CORS
 from config import SQLALCHEMY_DATABASE_URI, SQLALCHEMY_TRACK_MODIFICATIONS, SECRET_KEY, DEFAULT_USER_NAME
-from models import db, Admin, User, MCQAnswer, OpenAnswer
+from models import db, Admin, User, UserProfile, MCQAnswer, OpenAnswer
 from utils import load_questions, load_admins, load_users, hash_password
 from routes import register_routes
 
@@ -63,10 +64,19 @@ def create_app():
 
     with flask_app.app_context():
         db.create_all()
+        _ensure_schema()
         seed_super_admin()
         seed_users_from_json()
 
     return flask_app
+
+
+def _ensure_schema():
+    """ترقية إضافية آمنة لقواعد SQLite الموجودة مسبقاً."""
+    columns = {row[1] for row in db.session.execute(text('PRAGMA table_info(mcq_answers)'))}
+    if 'answers' not in columns:
+        db.session.execute(text('ALTER TABLE mcq_answers ADD COLUMN answers JSON'))
+        db.session.commit()
 
 
 def init_db():
@@ -142,8 +152,13 @@ def seed_users_from_json():
                 q1=mcq_data.get('q1'),
                 q2=mcq_data.get('q2'),
                 q3=mcq_data.get('q3'),
-                q4=mcq_data.get('q4')
+                q4=mcq_data.get('q4'),
+                answers=mcq_data,
             ))
+
+        profile_details = entry.get('profile_details') or {}
+        if isinstance(profile_details, dict) and profile_details:
+            db.session.add(UserProfile(user_id=new_user.id, details=profile_details))
 
         open_data = entry.get('open_answers') or {}
         if isinstance(open_data, dict) and any(open_data.get(f'q{i}') for i in range(1, 5)):

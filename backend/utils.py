@@ -149,6 +149,16 @@ def sync_user_to_json(user):
         'assigned_admin_id': user.assigned_admin_id,
         'created_at': user.created_at.strftime('%Y-%m-%d %H:%M:%S') if user.created_at else ''
     }
+    if user.profile:
+        user_dict['profile_details'] = user.profile.details or {}
+    if user.mcq_answers:
+        user_dict['mcq_answers'] = user.mcq_answers.answers or {
+            f'q{i}': getattr(user.mcq_answers, f'q{i}', None) for i in range(1, 5)
+        }
+    if user.open_answers:
+        user_dict['open_answers'] = {
+            f'q{i}': getattr(user.open_answers, f'q{i}', None) for i in range(1, 5)
+        }
 
     existing_index = next((i for i, u in enumerate(users) if u.get('id') == user.id), None)
     if existing_index is not None:

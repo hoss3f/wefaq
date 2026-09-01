@@ -61,6 +61,10 @@ export default function UserDashboardPage() {
           navigate('/complete-application', { replace: true })
           return
         }
+        if (userData.user.status === 'approved' && location.pathname !== '/account') {
+          navigate('/matches', { replace: true })
+          return
+        }
         setUser(userData.user)
         setMcqAnswers(userData.mcq_answers)
         setOpenAnswers(userData.open_answers)
@@ -79,7 +83,7 @@ export default function UserDashboardPage() {
         })
       })
       .catch(() => setError('تعذر جلب بيانات الحساب'))
-  }, [navigate])
+  }, [navigate, location.pathname])
 
   function handleLogout() {
     localStorage.removeItem('wefaq_user')
@@ -204,6 +208,7 @@ export default function UserDashboardPage() {
           )}
 
           <div className="flex gap-3 mt-6 flex-wrap">
+            {user.status === 'approved' && <Button onClick={() => navigate('/matches')}>العودة إلى المرشحين</Button>}
             {!editing && (
               <Button onClick={() => { setEditing(true); setSaveMsg('') }}>
                 تعديل البيانات
