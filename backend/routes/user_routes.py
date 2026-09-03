@@ -10,7 +10,9 @@ from utils import (
     is_placeholder_name,
     save_user_photo,
     photo_url_for,
+    send_welcome_email,
 )
+from security import sanitize_text, validate_email, MAX_PHONE_LEN
 
 user_bp = Blueprint('user', __name__, url_prefix='/api')
 
@@ -45,6 +47,18 @@ def _apply_personal_data(user, data):
     user.birthday = birthday
     user.gender = data['gender']
     user.country = data['country']
+
+    if 'phone' in data:
+        user.phone = sanitize_text(data.get('phone', ''), MAX_PHONE_LEN)
+
+    if data.get('email'):
+        email = validate_email(data.get('email'))
+        if not email:
+            return False, {'success': False, 'message': 'البريد الإلكتروني غير صحيح'}, 400
+        user.email = email
+    elif 'email' in data:
+        user.email = ''
+
     details = data.get('profile_details') or {}
     if not isinstance(details, dict):
         return False, {'success': False, 'message': 'Profile details are invalid'}, 400
@@ -221,6 +235,7 @@ def complete_application(user_id):
     user.status = 'reviewing'
     db.session.commit()
     sync_user_to_json(user)
+    send_welcome_email(user)
 
     mcq = MCQAnswer.query.filter_by(user_id=user_id).first()
     open_ans = OpenAnswer.query.filter_by(user_id=user_id).first()

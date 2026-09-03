@@ -29,7 +29,7 @@ const AGE_FILTERS = [
   { key: 'over35', label: 'أكبر من 35' }
 ]
 const SCOPE_FILTERS = [
-  { key: 'all', label: 'كل الحالات' },
+  { key: 'all', label: 'جميع المستخدمين' },
   { key: 'mine', label: 'حالاتي فقط' },
   { key: 'by_admin', label: 'تصفية حسب المسؤول' }
 ]
@@ -430,16 +430,17 @@ export default function AdminDashboardPage() {
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2 mb-6">
-            {STATUS_FILTERS.map((status) => (
-              <button
-                key={status}
-                onClick={() => setFilter(status)}
-                className={`px-3 py-2 rounded-xl text-sm border whitespace-nowrap
-                  ${filter === status ? 'bg-teal-600 text-linen border-teal-600' : 'border-teal-100 text-ink hover:bg-teal-50'}`}
-              >
-                {status === 'all' ? 'الكل' : config.statusLabels[status]}
-              </button>
-            ))}
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="rounded-xl border border-teal-100 px-3 py-2 bg-linen text-sm"
+            >
+              {STATUS_FILTERS.map((status) => (
+                <option key={status} value={status}>
+                  {status === 'all' ? 'كل الحالات' : config.statusLabels[status]}
+                </option>
+              ))}
+            </select>
             <select
               value={genderFilter}
               onChange={(e) => setGenderFilter(e.target.value)}

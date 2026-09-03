@@ -10,7 +10,7 @@
 ![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-Build-646CFF?logo=vite&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-Styling-06B6D4?logo=tailwindcss&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-Database-07405E?logo=sqlite&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
 
 [نبذة](#-نبذة) · [المميزات](#-المميزات) · [التقنيات](#️-التقنيات) · [الهيكل](#-هيكل-المشروع) · [التشغيل](#-التشغيل) · 
 
@@ -51,7 +51,7 @@
 
 | الجزء | التقنيات |
 |:---|:---|
-| **Backend** | Flask · Flask-SQLAlchemy · Flask-CORS · SQLite |
+| **Backend** | Flask · Flask-SQLAlchemy · Flask-CORS · PostgreSQL |
 | **Frontend** | React 18 · React Router · Vite · Tailwind CSS |
 
 ## 📁 هيكل المشروع
@@ -63,11 +63,17 @@ wefaq/
 ├── backend/
 │   ├── app.py                    نقطة تشغيل الخادم وتهيئة قاعدة البيانات
 │   ├── config.py                 إعدادات الاتصال والمسارات
-│   ├── models.py                 جداول: users, admins, answers, notes, notifications
-│   ├── utils.py                  تشفير، توليد أكواد، مزامنة JSON
-│   ├── data/                     admins.json · questions.json · users.json
-│   ├── instance/wefaq.db         قاعدة SQLite (تُنشأ تلقائياً)
-│   └── routes/                   auth · user · admin · notifications
+│   ├── .env                      DATABASE_URL · SECRET_KEY · إعدادات SMTP (أنشئه من .env.example)
+│   ├── security.py               تعقيم المدخلات والتحقق من صحتها
+│   ├── utils.py                  تشفير، توليد أكواد، مزامنة JSON، بريد الترحيب
+│   ├── test_system.py            اختبار النظام الشامل
+│   ├── models/
+│   │   ├── db_schemes/           جداول: users, admins, answers, notes, notifications
+│   │   └── data/                 admins.json · questions.json · users.json
+│   ├── routes/                   auth · user · admin · matching · notifications
+│   ├── services/
+│   │   └── matching_service.py   منطق ترشيح التوافق بين المتقدمين
+│   └── uploads/                  صور المستخدمين المرفوعة
 │
 └── frontend/
     ├── test_phase3.mjs                 اختبار تدفق كامل
@@ -75,13 +81,24 @@ wefaq/
     └── src/
         ├── config.json           رابط API + حقول النموذج + خطوات التسجيل
         ├── components/           Card, Button, ProgressSteps ...
-        ├── pages/                الرئيسية، الدخول، إكمال الطلب، اللوحات
-        └── services/             استدعاءات API
+        ├── pages/                الرئيسية، الدخول، التسجيل، إكمال الطلب، اللوحات
+        └── services/             استدعاءات API (auth · user · admin · matching)
 ```
 
 ## 🚀 التشغيل
 
-### 1. الخادم الخلفي
+### 0. قاعدة البيانات
+
+المشروع يعتمد على **PostgreSQL** فقط (لا يوجد دعم SQLite). جهّز قاعدة بيانات فارغة (محلياً أو عبر Neon/Supabase مثلاً)، ثم:
+
+```bash
+cd backend
+cp .env.example .env   # Windows: copy .env.example .env
+```
+
+عدّل `backend/.env` وضع فيه `DATABASE_URL` الحقيقي (و`SECRET_KEY`). إعدادات `SMTP_*` اختيارية — بدونها يتم تخطي إرسال بريد الترحيب بصمت.
+
+### 1. الخادم 
 ```bash
 cd backend
 python -m venv venv
@@ -101,7 +118,7 @@ python app.py
 ```
 
 
-📍 يعمل على `http://localhost:5000` وينشئ قاعدة البيانات وحساب المدير العام تلقائياً.
+📍 يعمل على `http://localhost:5000` وينشئ الجداول وحساب المدير العام تلقائياً في قاعدة البيانات المحددة في `DATABASE_URL`.
 
 ### 2. الواجهة الأمامية
 
