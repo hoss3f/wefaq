@@ -45,13 +45,13 @@ export function NumericRangeSlider({ label, minimum, maximum, minValue, maxValue
       <span>الحد الأدنى: {lower} {unit}</span>
       <span>الحد الأقصى: {upper} {unit}</span>
     </div>
-    <div dir="ltr" className="dual-range" style={{ '--range-start': `${lowerPosition}%`, '--range-end': `${upperPosition}%` }}>
+    <div dir="ltr" className="dual-range dual-range--mirrored" style={{ '--range-start': `${lowerPosition}%`, '--range-end': `${upperPosition}%` }}>
       <div className="dual-range__track" aria-hidden="true" />
       <RangeInput ariaLabel={`الحد الأدنى لـ${label}`} minimum={minimum} maximum={maximum} value={lower} onChange={(next) => onMinChange(Math.min(next, upper))} />
       <RangeInput ariaLabel={`الحد الأقصى لـ${label}`} minimum={minimum} maximum={maximum} value={upper} onChange={(next) => onMaxChange(Math.max(next, lower))} />
     </div>
     <div className="mt-3 flex justify-between text-sm text-muted" dir="ltr">
-      <span>{minimum} {unit}</span><span>{maximum} {unit}</span>
+      <span>{maximum} {unit}</span><span>{minimum} {unit}</span>
     </div>
   </div>
 }

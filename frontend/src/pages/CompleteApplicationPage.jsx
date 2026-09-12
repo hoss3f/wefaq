@@ -79,10 +79,80 @@ function normalizeNumericDetails(questionData, storedDetails) {
   return normalized
 }
 
+// نفس الصيغة والحد المطبّقين في الخادم (security.validate_email) كي لا يُرفض البريد بعد إرسال الطلب.
+const MAX_EMAIL_LEN = 50
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+function emailValidation(value) {
+  const email = (value || '').trim()
+  if (!email) return ''
+  if (email.length > MAX_EMAIL_LEN) return `يرجى إدخال بريد إلكتروني لا يتجاوز ${MAX_EMAIL_LEN} حرفاً.`
+  if (!EMAIL_PATTERN.test(email)) return 'يرجى إدخال بريد إلكتروني صحيح مثل example@email.com'
+  return ''
+}
+
+// رقم الجوال أرقام فقط — رمز الدولة يأتي من القائمة، والمجموع لا يتجاوز 15 رقماً (E.164).
+const MIN_PHONE_DIGITS = 6
+const MAX_PHONE_DIGITS = 15
+function onlyDigits(value) {
+  // نحوّل الأرقام العربية والفارسية إلى أرقام لاتينية ثم نحذف كل ما عداها.
+  return String(value || '')
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06F0))
+    .replace(/\D/g, '')
+}
+function phoneValidation(code, number) {
+  const digits = onlyDigits(number)
+  if (!digits) return 'يرجى إدخال رقم الجوال.'
+  const total = onlyDigits(code).length + digits.length
+  if (total < MIN_PHONE_DIGITS || total > MAX_PHONE_DIGITS) return `رقم الجوال يجب أن يتكوّن من ${MIN_PHONE_DIGITS} إلى ${MAX_PHONE_DIGITS} أرقام.`
+  return ''
+}
+
 function nameValidation(value) {
   const name = (value || '').trim()
   if (!name) return 'يرجى إدخال الاسم الكامل.'
   if (!/^[\u0621-\u064Aa-zA-Z][\u0621-\u064Aa-zA-Z\s'-]{1,99}$/.test(name)) return 'يرجى إدخال اسم صحيح.'
+  return ''
+}
+
+// نفس الحدود المطبّقة في الخادم (security.validate_birthday) — الميلاد في الماضي فقط.
+const MIN_AGE = 18
+const MAX_AGE = 100
+function startOfToday() {
+  const date = new Date()
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+function isoDate(date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+function yearsAgo(years) {
+  const date = startOfToday()
+  date.setFullYear(date.getFullYear() - years)
+  return date
+}
+function birthdayValidation(value) {
+  const raw = (value || '').trim()
+  if (!raw) return 'يرجى اختيار تاريخ الميلاد.'
+  const birthday = new Date(`${raw}T00:00:00`)
+  if (Number.isNaN(birthday.getTime())) return 'صيغة تاريخ الميلاد غير صحيحة.'
+  const now = startOfToday()
+  if (birthday >= now) return 'تاريخ الميلاد يجب أن يكون في الماضي.'
+  let age = now.getFullYear() - birthday.getFullYear()
+  const beforeBirthday = now.getMonth() < birthday.getMonth()
+    || (now.getMonth() === birthday.getMonth() && now.getDate() < birthday.getDate())
+  if (beforeBirthday) age -= 1
+  if (age < MIN_AGE) return `يجب ألا يقل العمر عن ${MIN_AGE} سنة.`
+  if (age > MAX_AGE) return 'تاريخ الميلاد غير صحيح.'
+  return ''
+}
+
+// الأسئلة النصية تقبل نصاً فقط — لا أرقاماً أو رموزاً وحدها.
+const LETTER_PATTERN = /\p{L}/u
+function textValidation(value) {
+  const text = (value || '').trim()
+  if (!text) return 'يرجى كتابة إجابتك.'
+  if (!LETTER_PATTERN.test(text)) return 'يرجى كتابة إجابة نصية.'
   return ''
 }
 
@@ -97,6 +167,10 @@ export default function CompleteApplicationPage() {
   const [index, setIndex] = useState(0)
   const [error, setError] = useState('')
   const [nameError, setNameError] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+  const [birthdayError, setBirthdayError] = useState('')
+  const [textError, setTextError] = useState('')
   const [loading, setLoading] = useState(false)
   const [phoneCode, setPhoneCode] = useState('+974')
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -129,17 +203,19 @@ export default function CompleteApplicationPage() {
     const match = codes.find((item) => raw.startsWith(item.code))
     if (match) {
       setPhoneCode(match.code)
-      setPhoneNumber(raw.slice(match.code.length))
+      setPhoneNumber(onlyDigits(raw.slice(match.code.length)))
     } else {
-      setPhoneNumber(raw)
+      setPhoneNumber(onlyDigits(raw))
     }
     setPhoneParsed(true)
   }, [questionSet, personal, phoneParsed])
 
   function updatePhone(code, number) {
+    const digits = onlyDigits(number)
     setPhoneCode(code)
-    setPhoneNumber(number)
-    setPersonal((old) => ({ ...old, phone: `${code}${number}`.trim() }))
+    setPhoneNumber(digits)
+    setPhoneError('')
+    setPersonal((old) => ({ ...old, phone: digits ? `${code}${digits}` : '' }))
   }
 
   const onboarding = questionSet?.onboarding
@@ -170,19 +246,30 @@ export default function CompleteApplicationPage() {
     else setDetails((old) => ({ ...old, [item.key]: value }))
     if (item.key === 'gender' && value !== 'أنثى') setDetails((old) => { const nextDetails = { ...old }; delete nextDetails.polygyny_acceptance; return nextDetails })
     if (item.key === 'full_name') setNameError(nameValidation(value))
+    if (item.key === 'birthday') setBirthdayError(birthdayValidation(value))
+    if (item.type === 'textarea') setTextError(textValidation(value))
   }
   const setDetail = (key, value) => setDetails((old) => ({ ...old, [key]: value }))
 
   function valid() {
     if (!question?.required) return true
     if (question.type === 'preferences') return question.fields.filter((field) => field.type !== 'range' && !field.optional).every((field) => Array.isArray(details[field.key]) ? details[field.key].length > 0 : !!details[field.key])
-    if (question.type === 'contact') return !!phoneNumber?.trim()
+    if (question.type === 'contact') return !phoneValidation(phoneCode, phoneNumber) && !emailValidation(personal.email)
     if (question.openNumber) {
       const answer = answers[`q${question.openNumber}`]?.trim() || ''
-      return answer.length >= (question.openNumber === 1 ? 20 : 5) && answer.length <= 1500
+      return answer.length >= (question.openNumber === 1 ? 20 : 5) && answer.length <= 1500 && !textValidation(answer)
     }
     if (question.key === 'full_name') return !nameValidation(getValue(question))
+    if (question.key === 'birthday') return !birthdayValidation(getValue(question))
+    if (question.type === 'textarea') return !textValidation(getValue(question))
     return !!getValue(question)?.toString().trim()
+  }
+  function stepIndexForField(field) {
+    if (!field) return -1
+    const direct = steps.findIndex((item) => item.key === field)
+    if (direct !== -1) return direct
+    if (field === 'email' || field === 'phone') return steps.findIndex((item) => item.type === 'contact')
+    return steps.findIndex((item) => (item.fields || []).some((sub) => sub.key === field))
   }
   async function submit() {
     setLoading(true)
@@ -190,12 +277,47 @@ export default function CompleteApplicationPage() {
       const result = await completeApplication(userId, { ...personal, profile_details: details }, mcqAnswers, answers)
       localStorage.setItem('wefaq_user', JSON.stringify({ id: result.user.id, code: result.user.code, full_name: result.user.full_name, status: result.user.status, needs_onboarding: false }))
       navigate('/dashboard', { replace: true })
-    } catch (requestError) { setError(requestError.message) } finally { setLoading(false) }
+    } catch (requestError) {
+      // نُعيد المستخدم إلى الخطوة صاحبة الخطأ بدل عرض الرسالة أسفل آخر سؤال.
+      const payload = requestError.payload || {}
+      const field = payload.field || (payload.missing_fields || [])[0]
+      const target = stepIndexForField(field)
+      if (field === 'email') setEmailError(requestError.message)
+      if (field === 'phone') setPhoneError(requestError.message)
+      if (field === 'birthday') setBirthdayError(requestError.message)
+      if (field?.startsWith('open_')) setTextError(requestError.message)
+      if (target !== -1) setIndex(target)
+      setError(requestError.message)
+    } finally { setLoading(false) }
+  }
+  // الرجوع لا يجب أن يحمل رسالة خطأ السؤال السابق إلى السؤال الجديد.
+  function back() {
+    setError('')
+    setTextError('')
+    setIndex((current) => Math.max(0, current - 1))
   }
   function next() {
     if (question?.key === 'full_name') setNameError(nameValidation(getValue(question)))
+    if (question?.type === 'contact') {
+      const phoneMessage = phoneValidation(phoneCode, phoneNumber)
+      const emailMessage = emailValidation(personal.email)
+      setPhoneError(phoneMessage)
+      setEmailError(emailMessage)
+      if (phoneMessage || emailMessage) return setError(phoneMessage || emailMessage)
+    }
+    if (question?.key === 'birthday') {
+      const birthdayMessage = birthdayValidation(getValue(question))
+      setBirthdayError(birthdayMessage)
+      if (birthdayMessage) return setError(birthdayMessage)
+    }
+    if (question?.type === 'textarea') {
+      const textMessage = textValidation(question.openNumber ? answers[`q${question.openNumber}`] : getValue(question))
+      setTextError(textMessage)
+      if (textMessage) return setError(textMessage)
+    }
     if (!valid()) return setError(ui.validation_error)
     setError('')
+    setTextError('')
     if (index === steps.length - 1) return submit()
     setIndex((current) => current + 1)
   }
@@ -208,28 +330,41 @@ export default function CompleteApplicationPage() {
     if (question.type === 'choice') return <ChoiceCards options={question.options_by_gender?.[personal.gender] || question.options || []} value={value} onChange={(selected) => setValue(question, selected)} />
     if (question.type === 'chips') return <ChoiceCards chips options={question.options} value={value} onChange={(selected) => setValue(question, selected)} />
     if (question.type === 'search') return <SearchSelector question={question} value={value} onChange={(selected) => setValue(question, selected)} otherOption={onboarding.other_option} />
-    if (question.type === 'date') return <input autoFocus type="date" value={value || ''} onChange={(event) => setValue(question, event.target.value)} className="w-full rounded-xl border border-teal-100 bg-white p-5 text-xl outline-none focus:border-gold-500" />
+    if (question.type === 'date') {
+      // تاريخ الميلاد محصور في الماضي؛ بقية التواريخ (مثل التخرج) تبقى بلا حد.
+      const isBirthday = question.key === 'birthday'
+      return <><input autoFocus type="date" value={value || ''} min={isBirthday ? isoDate(yearsAgo(MAX_AGE)) : undefined} max={isBirthday ? isoDate(yearsAgo(MIN_AGE)) : undefined} onChange={(event) => setValue(question, event.target.value)} className="w-full rounded-xl border border-teal-100 bg-white p-5 text-xl outline-none focus:border-gold-500" />{isBirthday && birthdayError && <p className="mt-3 text-sm text-brick-500">{birthdayError}</p>}</>
+    }
     if (question.type === 'slider') return <SliderField question={question} value={value} onChange={setValue} />
     if (question.type === 'number') return <div className="relative"><input autoFocus type="number" min="1" value={value || ''} onChange={(event) => setValue(question, event.target.value)} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-5xl font-bold text-teal-700 outline-none focus:border-gold-500" />{question.suffix && <span className="absolute bottom-5 left-0 text-xl text-muted">{question.suffix}</span>}</div>
-    if (question.type === 'textarea') return question.openNumber
-      ? <div><textarea autoFocus rows="6" minLength={question.openNumber === 1 ? 20 : 5} maxLength="1500" value={answers[`q${question.openNumber}`] || ''} onChange={(event) => setAnswers((old) => ({ ...old, [`q${question.openNumber}`]: event.target.value }))} placeholder={question.openNumber === 1 ? 'اكتب فقرة قصيرة تعبّر عن شخصيتك واهتماماتك...' : question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" /><p className="mt-2 text-left text-xs text-muted">{(answers[`q${question.openNumber}`] || '').length} / 1500</p></div>
-      : <textarea autoFocus rows="6" value={value || ''} onChange={(event) => setValue(question, event.target.value)} placeholder={question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />
+    if (question.type === 'textarea') {
+      const openKey = question.openNumber ? `q${question.openNumber}` : null
+      const currentValue = (openKey ? answers[openKey] : value) || ''
+      const onTextChange = (event) => {
+        if (!openKey) return setValue(question, event.target.value)
+        setAnswers((old) => ({ ...old, [openKey]: event.target.value }))
+        setTextError(textValidation(event.target.value))
+      }
+      return <div><textarea autoFocus rows="6" minLength={openKey ? (question.openNumber === 1 ? 20 : 5) : undefined} maxLength={openKey ? 1500 : undefined} value={currentValue} onChange={onTextChange} placeholder={question.openNumber === 1 ? 'اكتب فقرة قصيرة تعبّر عن شخصيتك واهتماماتك...' : question.placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-3 text-xl leading-relaxed outline-none focus:border-gold-500" />{openKey && <p className="mt-2 text-left text-xs text-muted">{currentValue.length} / 1500</p>}{textError && <p className="mt-3 text-sm text-brick-500">{textError}</p>}</div>
+    }
     if (question.type === 'preferences') return renderPreferences()
     if (question.type === 'contact') {
       const codes = question.country_codes || []
       return <div className="space-y-8">
         <div>
           <b className="mb-3 block text-teal-700">{question.phone_label}</b>
-          <div className="flex items-center gap-3 border-b-2 border-teal-100 focus-within:border-gold-500">
+          <div className={`flex items-center gap-3 border-b-2 focus-within:border-gold-500 ${phoneError ? 'border-brick-500' : 'border-teal-100'}`}>
             <select value={phoneCode} onChange={(event) => updatePhone(event.target.value, phoneNumber)} className="bg-transparent py-4 text-lg font-bold text-teal-700 outline-none">
               {codes.map((item) => <option key={item.code} value={item.code}>{item.code} {item.name}</option>)}
             </select>
-            <input autoFocus type="tel" value={phoneNumber} onChange={(event) => updatePhone(phoneCode, event.target.value)} placeholder={question.phone_placeholder} className="w-full bg-transparent py-4 text-2xl outline-none placeholder:text-muted/70" />
+            <input autoFocus type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={MAX_PHONE_DIGITS - onlyDigits(phoneCode).length} value={phoneNumber} onChange={(event) => updatePhone(phoneCode, event.target.value)} placeholder={question.phone_placeholder} className="w-full bg-transparent py-4 text-2xl outline-none placeholder:text-muted/70" />
           </div>
+          {phoneError && <p className="mt-3 text-sm text-brick-500">{phoneError}</p>}
         </div>
         <div>
           <b className="mb-3 block text-teal-700">{question.email_label}</b>
-          <input type="email" value={personal.email || ''} onChange={(event) => setPersonal((old) => ({ ...old, email: event.target.value }))} placeholder={question.email_placeholder} className="w-full border-b-2 border-teal-100 bg-transparent py-4 text-2xl outline-none focus:border-gold-500" />
+          <input type="email" value={personal.email || ''} onChange={(event) => { setPersonal((old) => ({ ...old, email: event.target.value })); setEmailError('') }} onBlur={(event) => setEmailError(emailValidation(event.target.value))} placeholder={question.email_placeholder} className={`w-full border-b-2 bg-transparent py-4 text-2xl outline-none focus:border-gold-500 ${emailError ? 'border-brick-500' : 'border-teal-100'}`} />
+          {emailError && <p className="mt-3 text-sm text-brick-500">{emailError}</p>}
         </div>
       </div>
     }
@@ -237,5 +372,5 @@ export default function CompleteApplicationPage() {
   }
 
   if (!question) return <p className="py-20 text-center text-muted">{ui.loading || '...'}</p>
-  return <main dir="rtl" className="min-h-[calc(100vh-64px)] bg-linen text-ink"><div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-xl flex-col px-6 pb-8 pt-7"><header dir="ltr" className="flex items-center gap-5"><button type="button" aria-label={ui.back} disabled={index === 0} onClick={() => setIndex((current) => Math.max(0, current - 1))} className="text-3xl text-teal-700 disabled:text-teal-100">‹</button><div className="h-1 flex-1 overflow-hidden rounded-full bg-teal-100"><div className="h-full rounded-full bg-gold-500 transition-all" style={{ width: `${((index + 1) / steps.length) * 100}%` }} /></div><span className="font-display text-xl text-teal-700">و</span></header><div className="flex-1 pt-16"><p className="mb-3 text-sm text-muted">{index + 1} {ui.progress} {steps.length}</p><h1 className="font-display text-3xl font-bold leading-tight text-teal-700 sm:text-4xl">{question.title}</h1>{question.description && <p className="mt-3 text-lg leading-relaxed text-muted">{question.description}</p>}<div className={`mt-10 ${error ? 'rounded-2xl ring-2 ring-brick-500 ring-offset-4 ring-offset-linen' : ''}`}>{renderQuestion()}</div>{error && <p className="mt-4 flex items-center gap-2 text-sm font-medium text-brick-500"><span aria-hidden="true">⚠</span>{error}</p>}</div><button type="button" onClick={next} disabled={loading} className="mt-8 w-full rounded-xl bg-teal-600 px-6 py-4 text-lg font-bold text-linen transition-colors hover:bg-teal-700 disabled:bg-teal-100 disabled:text-muted">{loading ? ui.submitting : index === steps.length - 1 ? ui.submit : ui.continue}</button></div></main>
+  return <main dir="rtl" className="min-h-[calc(100vh-64px)] bg-linen text-ink"><div className="mx-auto flex min-h-[calc(100vh-64px)] max-w-xl flex-col px-6 pb-8 pt-7"><header dir="ltr" className="flex items-center gap-5"><button type="button" aria-label={ui.back} disabled={index === 0} onClick={back} className="text-3xl text-teal-700 disabled:text-teal-100">‹</button><div className="h-1 flex-1 overflow-hidden rounded-full bg-teal-100"><div className="h-full rounded-full bg-gold-500 transition-all" style={{ width: `${((index + 1) / steps.length) * 100}%` }} /></div><span className="font-display text-xl text-teal-700">و</span></header><div className="flex-1 pt-16"><p className="mb-3 text-sm text-muted">{index + 1} {ui.progress} {steps.length}</p><h1 className="font-display text-3xl font-bold leading-tight text-teal-700 sm:text-4xl">{question.title}</h1>{question.description && <p className="mt-3 text-lg leading-relaxed text-muted">{question.description}</p>}<div className={`mt-10 ${error ? 'rounded-2xl ring-2 ring-brick-500 ring-offset-4 ring-offset-linen' : ''}`}>{renderQuestion()}</div>{error && <p className="mt-4 flex items-center gap-2 text-sm font-medium text-brick-500"><span aria-hidden="true">⚠</span>{error}</p>}</div><button type="button" onClick={next} disabled={loading} className="mt-8 w-full rounded-xl bg-teal-600 px-6 py-4 text-lg font-bold text-linen transition-colors hover:bg-teal-700 disabled:bg-teal-100 disabled:text-muted">{loading ? ui.submitting : index === steps.length - 1 ? ui.submit : ui.continue}</button></div></main>
 }

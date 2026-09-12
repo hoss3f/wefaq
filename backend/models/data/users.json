@@ -707,7 +707,6 @@
     "status": "approved",
     "status_reason": "",
     "assigned_admin_id": 1,
-<<<<<<< HEAD:backend/data/users.json
     "created_at": "2026-08-13 18:25:02",
     "profile_details": {
       "age_min": 18,
@@ -747,40 +746,11 @@
     "phone": "",
     "email": "",
     "birthday": "2007-01-01",
-=======
-    "created_at": "2026-08-13 18:25:02"
-  },
-  {
-    "id": 54,
-    "code": "USER7840",
-    "full_name": "sdjn",
-    "phone": "",
-    "email": "",
-    "birthday": "2000-01-01",
-    "gender": "ذكر",
-    "guardian_phone": "",
-    "guardian_relation": "",
-    "photo_path": "",
-    "country": "السعودية",
-    "status": "approved",
-    "status_reason": "",
-    "assigned_admin_id": 1,
-    "created_at": "2026-08-13 18:25:02"
-  },
-  {
-    "id": 55,
-    "code": "USER98453",
-    "full_name": "عبدالرحمن",
-    "phone": "",
-    "email": "",
-    "birthday": "2004-01-01",
->>>>>>> origin/main:backend/models/data/users.json
     "gender": "ذكر",
     "guardian_phone": "",
     "guardian_relation": "",
     "photo_path": "",
     "country": "مصر",
-<<<<<<< HEAD:backend/data/users.json
     "status": "approved",
     "status_reason": "",
     "assigned_admin_id": 1,
@@ -874,7 +844,76 @@
     "email": "",
     "birthday": "2007-01-07",
     "gender": "أنثى",
-=======
+    "guardian_phone": "",
+    "guardian_relation": "",
+    "photo_path": "",
+    "country": "الكويت",
+    "status": "approved",
+    "status_reason": "",
+    "assigned_admin_id": 1,
+    "created_at": "2026-08-30 19:18:57",
+    "profile_details": {
+      "age_min": 18,
+      "age_max": 35,
+      "height_min": 150,
+      "height_max": 190,
+      "is_candidate": "لا",
+      "registrant_relation": "الأب",
+      "nationality": "قطري",
+      "profession": "محاسب",
+      "marital_status": "لم أتزوج من قبل",
+      "has_children": "لا",
+      "marriage_timeline": "6 أشهر",
+      "height": 190,
+      "weight": 96,
+      "chronic_diseases": "لا",
+      "disability": "لا",
+      "marital_preference": "لم يتزوج من قبل",
+      "nationality_preference": "سعودي",
+      "ethnicity_preference": "88"
+    },
+    "mcq_answers": {
+      "q1": "دبلوم",
+      "q2": "لا يهم",
+      "q3": "ليس مهماً",
+      "q4": "الأخلاق"
+    },
+    "open_answers": {
+      "q1": "\nعت\n",
+      "q2": "الااتن",
+      "q3": "تلاتلاى",
+      "q4": "تى"
+    }
+  },
+  {
+    "id": 54,
+    "code": "USER7840",
+    "full_name": "sdjn",
+    "phone": "",
+    "email": "",
+    "birthday": "2000-01-01",
+    "gender": "ذكر",
+    "guardian_phone": "",
+    "guardian_relation": "",
+    "photo_path": "",
+    "country": "السعودية",
+    "status": "approved",
+    "status_reason": "",
+    "assigned_admin_id": 1,
+    "created_at": "2026-08-13 18:25:02"
+  },
+  {
+    "id": 55,
+    "code": "USER98453",
+    "full_name": "عبدالرحمن",
+    "phone": "",
+    "email": "",
+    "birthday": "2004-01-01",
+    "gender": "ذكر",
+    "guardian_phone": "",
+    "guardian_relation": "",
+    "photo_path": "",
+    "country": "مصر",
     "status": "reviewing",
     "status_reason": "",
     "assigned_admin_id": 1,
@@ -1007,49 +1046,10 @@
     "email": "ar3380800@gmail.com",
     "birthday": "3333-01-01",
     "gender": "ذكر",
->>>>>>> origin/main:backend/models/data/users.json
     "guardian_phone": "",
     "guardian_relation": "",
     "photo_path": "",
     "country": "الكويت",
-<<<<<<< HEAD:backend/data/users.json
-    "status": "approved",
-    "status_reason": "",
-    "assigned_admin_id": 1,
-    "created_at": "2026-08-30 19:18:57",
-    "profile_details": {
-      "age_min": 18,
-      "age_max": 35,
-      "height_min": 150,
-      "height_max": 190,
-      "is_candidate": "لا",
-      "registrant_relation": "الأب",
-      "nationality": "قطري",
-      "profession": "محاسب",
-      "marital_status": "لم أتزوج من قبل",
-      "has_children": "لا",
-      "marriage_timeline": "6 أشهر",
-      "height": 190,
-      "weight": 96,
-      "chronic_diseases": "لا",
-      "disability": "لا",
-      "marital_preference": "لم يتزوج من قبل",
-      "nationality_preference": "سعودي",
-      "ethnicity_preference": "88"
-    },
-    "mcq_answers": {
-      "q1": "دبلوم",
-      "q2": "لا يهم",
-      "q3": "ليس مهماً",
-      "q4": "الأخلاق"
-    },
-    "open_answers": {
-      "q1": "\nعت\n",
-      "q2": "الااتن",
-      "q3": "تلاتلاى",
-      "q4": "تى"
-    }
-=======
     "status": "reviewing",
     "status_reason": "",
     "assigned_admin_id": 1,
@@ -1105,6 +1105,50 @@
     "status_reason": "",
     "assigned_admin_id": 1,
     "created_at": "2026-08-14 18:52:49"
->>>>>>> origin/main:backend/models/data/users.json
+  },
+  {
+    "id": 95,
+    "code": "USER98485",
+    "full_name": "علي",
+    "phone": "+97422222",
+    "email": "ar3380800@gmail.com",
+    "birthday": "2003-01-01",
+    "gender": "ذكر",
+    "guardian_phone": "",
+    "guardian_relation": "",
+    "photo_path": "",
+    "country": "قطر",
+    "status": "reviewing",
+    "status_reason": "",
+    "assigned_admin_id": 1,
+    "created_at": "2026-09-08 17:26:04",
+    "profile_details": {
+      "age_min": 18,
+      "age_max": 35,
+      "height_min": 146,
+      "height_max": 190,
+      "height": 176,
+      "weight": 74,
+      "nationality": "سعودي",
+      "profession": "طبيب",
+      "marital_status": "لم أتزوج من قبل",
+      "marriage_timeline": "شهر واحد",
+      "chronic_diseases": "لا",
+      "disability": "لا",
+      "marital_preference": "لم يتزوج من قبل",
+      "ethnicity_preference": "لا يهم",
+      "nationality_preference": "قطري"
+    },
+    "mcq_answers": {
+      "q1": "ثانوي",
+      "q2": "لا يهم",
+      "q4": "المظهر"
+    },
+    "open_answers": {
+      "q1": "مجد",
+      "q2": "مهنم",
+      "q3": "جميله وورديه",
+      "q4": "لا"
+    }
   }
 ]

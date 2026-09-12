@@ -64,7 +64,11 @@ async function request(path, { method = 'GET', body } = {}) {
     const fallback = response.status >= 500
       ? 'حدث خطأ في الخادم، تأكد من تشغيله وحاول مرة أخرى'
       : 'حدث خطأ في الاتصال بالخادم'
-    throw new Error(data.message || fallback)
+    const requestError = new Error(data.message || fallback)
+    // نحتفظ بتفاصيل الخطأ (field / missing_fields) كي تعرف الواجهة أي حقل يجب إبرازه
+    requestError.status = response.status
+    requestError.payload = data
+    throw requestError
   }
 
   return data
@@ -91,7 +95,11 @@ export async function apiPostForm(path, formData) {
     const fallback = response.status >= 500
       ? 'حدث خطأ في الخادم، تأكد من تشغيله وحاول مرة أخرى'
       : 'حدث خطأ في الاتصال بالخادم'
-    throw new Error(data.message || fallback)
+    const requestError = new Error(data.message || fallback)
+    // نحتفظ بتفاصيل الخطأ (field / missing_fields) كي تعرف الواجهة أي حقل يجب إبرازه
+    requestError.status = response.status
+    requestError.payload = data
+    throw requestError
   }
 
   return data

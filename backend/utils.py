@@ -18,8 +18,14 @@ def read_json_file(filename):
     file_path = os.path.join(DATA_DIR, filename)
     if not os.path.exists(file_path):
         return None
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        if filename == 'users.json':
+            logger.warning('Ignoring malformed users.json; it will be rebuilt on the next user sync')
+            return []
+        raise
 
 
 def write_json_file(filename, data):
@@ -145,9 +151,21 @@ def user_needs_onboarding(user, mcq_answer=None):
     return not open_answers or not all(getattr(open_answers, f'q{i}', None) for i in range(1, 5))
 
 
+def _load_users_for_sync():
+    """قراءة users.json للمزامنة، مع تخطي الملف إذا كان تالفاً بدل إسقاط الطلب"""
+    try:
+        return load_users() or []
+    except (json.JSONDecodeError, OSError) as error:
+        # الملف مجرد نسخة مطابقة لقاعدة البيانات، فلا نُفشل الطلب ولا نستبدل محتواه.
+        logger.error('تعذّرت قراءة users.json فتم تخطي المزامنة: %s', error)
+        return None
+
+
 def sync_user_to_json(user):
     """إضافة أو تحديث بيانات مستخدم في users.json"""
-    users = load_users() or []
+    users = _load_users_for_sync()
+    if users is None:
+        return
     user_dict = {
         'id': user.id,
         'code': user.code,
@@ -187,7 +205,9 @@ def sync_user_to_json(user):
 
 def remove_user_from_json(user_id):
     """حذف مستخدم من users.json"""
-    users = load_users() or []
+    users = _load_users_for_sync()
+    if users is None:
+        return
     users = [u for u in users if u.get('id') != user_id]
     write_json_file('users.json', users)
 

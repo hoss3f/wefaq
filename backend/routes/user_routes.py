@@ -1,5 +1,4 @@
 # backend/routes/user_routes.py
-from datetime import datetime
 from flask import Blueprint, request, jsonify
 from models import db, User, UserProfile, MCQAnswer, OpenAnswer, AdminNote
 from utils import (
@@ -12,7 +11,16 @@ from utils import (
     photo_url_for,
     send_welcome_email,
 )
-from security import can_read_user, require_user_self, sanitize_text, validate_email, MAX_PHONE_LEN
+from security import (
+    can_read_user,
+    require_user_self,
+    sanitize_text,
+    validate_birthday,
+    validate_email,
+    validate_phone,
+    validate_text_answer,
+    MAX_PHONE_LEN,
+)
 
 user_bp = Blueprint('user', __name__, url_prefix='/api')
 
@@ -30,13 +38,6 @@ LEGACY_MARITAL_OPTIONS = {'لم أتزوج من قبل', 'متزوج سابقا�
 SKIN_TONE_OPTIONS = {'فاتح', 'قمحي', 'أسمر', 'داكن'}
 BODY_TYPE_OPTIONS = {'نحيف', 'متوسط', 'رياضي', 'ممتلئ'}
 REGISTRANT_RELATIONS = {'أنا صاحب الطلب', 'أنا وليّ أمر صاحب الطلب', 'أنا أحد أفراد أسرته'}
-
-
-def _parse_birthday(value):
-    try:
-        return datetime.strptime(value, '%Y-%m-%d').date()
-    except (TypeError, ValueError):
-        return None
 
 
 def _valid_full_name(value):
@@ -96,13 +97,16 @@ def _validate_profile_details(details, gender):
 
 
 def _validate_open_answers(open_data):
+    if not isinstance(open_data, dict):
+        return False, 'إجابات الأسئلة المفتوحة غير صالحة.', None
     for number in range(1, 5):
-        answer = sanitize_text(open_data.get(f'q{number}'), 1500)
+        key = f'q{number}'
+        answer, text_error = validate_text_answer(open_data.get(key), max_len=1500)
         minimum = 20 if number == 1 else 5
-        if len(answer) < minimum:
-            return False, 'يرجى كتابة إجابة أوضح قبل المتابعة.'
-        open_data[f'q{number}'] = answer
-    return True, None
+        if text_error or len(answer or '') < minimum:
+            return False, text_error or 'يرجى كتابة إجابة أوضح قبل المتابعة.', f'open_{number}'
+        open_data[key] = answer
+    return True, None, None
 
 
 def _apply_personal_data(user, data):
@@ -113,11 +117,11 @@ def _apply_personal_data(user, data):
 
     full_name = _valid_full_name(data.get('full_name'))
     if not full_name or is_placeholder_name(full_name):
-        return False, {'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.'}, 400
+        return False, {'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.', 'field': 'full_name'}, 400
 
-    birthday = _parse_birthday(data.get('birthday'))
-    if not birthday:
-        return False, {'success': False, 'message': 'صيغة تاريخ الميلاد غير صحيحة'}, 400
+    birthday, birthday_error = validate_birthday(data.get('birthday'))
+    if birthday_error:
+        return False, {'success': False, 'message': birthday_error, 'field': 'birthday'}, 400
 
     user.full_name = full_name
     user.birthday = birthday
@@ -125,12 +129,15 @@ def _apply_personal_data(user, data):
     user.country = data['country']
 
     if 'phone' in data:
-        user.phone = sanitize_text(data.get('phone', ''), MAX_PHONE_LEN)
+        phone, phone_error = validate_phone(data.get('phone'))
+        if phone_error:
+            return False, {'success': False, 'message': phone_error, 'field': 'phone'}, 400
+        user.phone = phone
 
     if data.get('email'):
         email = validate_email(data.get('email'))
         if not email:
-            return False, {'success': False, 'message': 'البريد الإلكتروني غير صحيح'}, 400
+            return False, {'success': False, 'message': 'البريد الإلكتروني غير صحيح', 'field': 'email'}, 400
         user.email = email
     elif 'email' in data:
         user.email = ''
@@ -209,8 +216,6 @@ def get_questions():
 def register_user():
     """تسجيل مستخدم جديد — يتطلب مصادقة إدارية"""
     data, photo_file = _parse_registration_data()
-    """تسجيل مستخدم جديد وإصدار كود خاص به"""
-    data = request.get_json() or {}
 
     missing = [field for field in REQUIRED_FIELDS if not data.get(field)]
     if missing:
@@ -222,15 +227,23 @@ def register_user():
 
     full_name = _valid_full_name(data.get('full_name'))
     if not full_name or is_placeholder_name(full_name):
-        return jsonify({'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.'}), 400
+        return jsonify({'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.', 'field': 'full_name'}), 400
 
-    birthday = _parse_birthday(data.get('birthday'))
-    if not birthday:
-        return jsonify({'success': False, 'message': 'صيغة تاريخ الميلاد غير صحيحة'}), 400
+    birthday, birthday_error = validate_birthday(data.get('birthday'))
+    if birthday_error:
+        return jsonify({'success': False, 'message': birthday_error, 'field': 'birthday'}), 400
 
     email = validate_email(data.get('email'))
     if not email:
-        return jsonify({'success': False, 'message': 'البريد الإلكتروني غير صحيح'}), 400
+        return jsonify({'success': False, 'message': 'البريد الإلكتروني غير صحيح', 'field': 'email'}), 400
+
+    phone, phone_error = validate_phone(data.get('phone'), required=True)
+    if phone_error:
+        return jsonify({'success': False, 'message': phone_error, 'field': 'phone'}), 400
+
+    guardian_phone, guardian_error = validate_phone(data.get('guardian_phone'))
+    if guardian_error:
+        return jsonify({'success': False, 'message': guardian_error, 'field': 'guardian_phone'}), 400
 
     photo_path = sanitize_text(data.get('photo_path', ''), 200) or None
     if photo_file and photo_file.filename:
@@ -242,11 +255,11 @@ def register_user():
     new_user = User(
         code=generate_user_code(User),
         full_name=full_name,
-        phone=data['phone'],
-        email=data['email'],
+        phone=phone,
+        email=email,
         birthday=birthday,
         gender=sanitize_text(data['gender'], 10),
-        guardian_phone=sanitize_text(data.get('guardian_phone', ''), 20),
+        guardian_phone=guardian_phone,
         guardian_relation=sanitize_text(data.get('guardian_relation', ''), 50),
         photo_path=photo_path,
         country=sanitize_text(data['country'], 50),
@@ -300,7 +313,7 @@ def complete_application(user_id):
     required_mcq = [
         question.get('answer_key') or f"q{question['id']}"
         for question in (load_questions() or {}).get('mcq', [])
-        if question.get('matching')
+        if question.get('active', True) and question.get('matching')
     ]
     missing_mcq = [key for key in required_mcq if not mcq_data.get(key)]
     if missing_mcq:
@@ -314,9 +327,9 @@ def complete_application(user_id):
     if not ok:
         return jsonify(err_body), err_code
 
-    open_ok, open_error = _validate_open_answers(open_data)
+    open_ok, open_error, open_field = _validate_open_answers(open_data)
     if not open_ok:
-        return jsonify({'success': False, 'message': open_error}), 400
+        return jsonify({'success': False, 'message': open_error, 'field': open_field}), 400
 
     _upsert_answers(user_id, mcq_data, open_data)
     user.status = 'reviewing'
@@ -393,13 +406,21 @@ def update_user(user_id):
             if field == 'full_name':
                 value = _valid_full_name(value)
                 if not value or is_placeholder_name(value):
-                    return jsonify({'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.'}), 400
+                    return jsonify({'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.', 'field': 'full_name'}), 400
+            if field == 'email' and str(value).strip():
+                value = validate_email(value)
+                if not value:
+                    return jsonify({'success': False, 'message': 'البريد الإلكتروني غير صحيح', 'field': 'email'}), 400
+            if field in ('phone', 'guardian_phone'):
+                value, phone_error = validate_phone(value, required=(field == 'phone'))
+                if phone_error:
+                    return jsonify({'success': False, 'message': phone_error, 'field': field}), 400
             setattr(user, field, value)
 
     if 'birthday' in data and data['birthday']:
-        birthday = _parse_birthday(data['birthday'])
-        if not birthday:
-            return jsonify({'success': False, 'message': 'صيغة تاريخ الميلاد غير صحيحة'}), 400
+        birthday, birthday_error = validate_birthday(data['birthday'])
+        if birthday_error:
+            return jsonify({'success': False, 'message': birthday_error, 'field': 'birthday'}), 400
         user.birthday = birthday
 
     db.session.commit()

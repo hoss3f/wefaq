@@ -1,11 +1,16 @@
 # backend/security.py
 """Authentication helpers, authorization checks, and input validation."""
 import re
+from datetime import date, datetime
 from functools import wraps
 from flask import request, jsonify
 from models import Admin, User
 
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+# أرقام فقط، مع السماح بعلامة + في البداية لرمز الدولة (E.164)
+PHONE_RE = re.compile(r'^\+?[0-9]{6,15}$')
+# حرف أبجدي (يشمل العربية) وليس رقماً أو رمزاً
+LETTER_RE = re.compile(r'[^\W\d_]', re.UNICODE)
 
 MAX_NAME_LEN = 100
 MAX_PHONE_LEN = 20
@@ -13,6 +18,8 @@ MAX_EMAIL_LEN = 50
 MAX_NOTE_LEN = 2000
 MAX_TEXT_LEN = 5000
 MIN_ADMIN_PASSWORD_LEN = 8
+MIN_AGE = 18
+MAX_AGE = 100
 
 
 def _admin_id_from_request():
@@ -150,8 +157,53 @@ def validate_email(email):
     return email
 
 
+def validate_phone(value, required=False):
+    """قبول أرقام الجوال المكوّنة من أرقام فقط (مع + اختيارية لرمز الدولة).
+
+    ترجع (phone, None) عند النجاح و(None, رسالة الخطأ) عند الفشل.
+    """
+    phone = sanitize_text(value, MAX_PHONE_LEN)
+    if not phone:
+        if required:
+            return None, 'يرجى إدخال رقم الجوال'
+        return '', None
+    if not PHONE_RE.match(phone):
+        return None, 'رقم الجوال يجب أن يتكوّن من أرقام فقط (6 إلى 15 رقماً)'
+    return phone, None
+
+
 def validate_admin_password(password):
     password = password or ''
     if len(password) < MIN_ADMIN_PASSWORD_LEN:
         return False, f'كلمة المرور يجب أن تكون {MIN_ADMIN_PASSWORD_LEN} أحرف على الأقل'
     return True, None
+
+
+def validate_birthday(value):
+    """تحليل تاريخ الميلاد ورفض التواريخ المستقبلية أو غير المنطقية.
+
+    ترجع (date, None) عند النجاح و(None, رسالة الخطأ) عند الفشل.
+    """
+    try:
+        birthday = datetime.strptime(sanitize_text(value, 10), '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None, 'صيغة تاريخ الميلاد غير صحيحة'
+
+    today = date.today()
+    if birthday >= today:
+        return None, 'تاريخ الميلاد يجب أن يكون في الماضي'
+
+    age = today.year - birthday.year - ((today.month, today.day) < (birthday.month, birthday.day))
+    if age < MIN_AGE:
+        return None, f'يجب ألا يقل العمر عن {MIN_AGE} سنة'
+    if age > MAX_AGE:
+        return None, 'تاريخ الميلاد غير صحيح'
+    return birthday, None
+
+
+def validate_text_answer(value, max_len=MAX_TEXT_LEN):
+    """الإجابات المفتوحة يجب أن تكون نصاً حقيقياً لا أرقاماً أو رموزاً فقط."""
+    text = sanitize_text(value, max_len)
+    if not text or not LETTER_RE.search(text):
+        return None, 'يرجى كتابة إجابة نصية'
+    return text, None

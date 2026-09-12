@@ -21,6 +21,8 @@ body {
 .single-range input::-moz-range-track { height: 7px; border-radius: 999px; background: #cfe0dc; }
 .single-range input::-moz-range-thumb, .dual-range input::-moz-range-thumb { width: 22px; height: 22px; border: 3px solid #FAF8F4; border-radius: 50%; background: #1F4741; box-shadow: 0 1px 4px #22302c55; }
 .dual-range { position: relative; height: 36px; }
+/* عكس المؤشر أفقياً ليكون الحد الأدنى يميناً والحد الأقصى يساراً، مع إبقاء الإدخال LTR لتفادي عكس السحب. */
+.dual-range--mirrored { transform: scaleX(-1); }
 .dual-range__track { position: absolute; top: 14px; right: 0; left: 0; height: 7px; border-radius: 999px; background: linear-gradient(to right, #cfe0dc var(--range-start), #C9A15A var(--range-start), #C9A15A var(--range-end), #cfe0dc var(--range-end)); }
 .dual-range input { position: absolute; inset: 0; pointer-events: none; }
 .dual-range input::-webkit-slider-thumb { pointer-events: auto; }

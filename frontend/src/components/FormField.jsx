@@ -3,6 +3,12 @@
 /**
  * حقل نموذج ديناميكي، يُبنى نوعه (نص، بريد، تاريخ، قائمة) من كائن الحقل القادم من config.json
  */
+/** حقول الهاتف تقبل الأرقام فقط، مع السماح بعلامة + في بدايتها لرمز الدولة. */
+function sanitizePhone(value) {
+  const digits = String(value || '').replace(/\D/g, '')
+  return String(value || '').trimStart().startsWith('+') ? `+${digits}` : digits
+}
+
 export default function FormField({ field, value, onChange, error, placeholder }) {
   const baseClasses = 'w-full rounded-xl border border-teal-100 px-4 py-3 bg-linen focus-visible:outline-2 focus-visible:outline-gold-500'
   const hint = placeholder || field.placeholder || ''
@@ -28,10 +34,11 @@ export default function FormField({ field, value, onChange, error, placeholder }
       ) : (
         <input
           type={field.type}
+          inputMode={field.type === 'tel' ? 'tel' : undefined}
           className={baseClasses}
           value={value || ''}
           placeholder={hint}
-          onChange={(e) => onChange(field.name, e.target.value)}
+          onChange={(e) => onChange(field.name, field.type === 'tel' ? sanitizePhone(e.target.value) : e.target.value)}
         />
       )}
 
