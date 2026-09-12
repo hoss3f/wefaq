@@ -95,10 +95,12 @@ def sample_personal(name='فاطمة أحمد'):
         'guardian_phone': '0509876543',
         'guardian_relation': 'أب',
         'profile_details': {
+            'registrant_relation': 'أنا صاحب الطلب',
             'nationality': 'سعودي', 'profession': 'مهندس', 'marital_status': 'لم أتزوج من قبل',
             'marriage_timeline': '3 أشهر', 'height': 170, 'weight': 70,
+            'skin_tone': 'قمحي', 'body_type': 'رياضي', 'polygyny_acceptance': 'لا',
             'age_min': 24, 'age_max': 40, 'height_min': 160, 'height_max': 190,
-            'marital_preference': 'لا يهم', 'nationality_preference': 'لا يهم'
+            'marital_preference': 'لا يهم', 'nationality_preference': ['لا يهم']
         }
     }
 
@@ -109,7 +111,7 @@ def sample_mcq():
 
 def sample_open():
     return {
-        'q1': 'هادئة مجتهدة',
+        'q1': 'أنا شخصية هادئة ومجتهدة وأقدّر الحوار والمسؤولية.',
         'q2': 'شريك متدين',
         'q3': 'أسرة مستقرة',
         'q4': 'لا شروط إضافية'
@@ -455,6 +457,7 @@ def test_matching_pair_opposite_gender():
 
     personal = sample_personal('محمد علي')
     personal['gender'] = 'ذكر'
+    personal['profile_details'].pop('polygyny_acceptance', None)
     personal['email'] = 'mohammed.test@example.com'
     personal['birthday'] = '1995-03-10'
     assert_ok(_json('post', f'/api/users/{male_id}/complete',

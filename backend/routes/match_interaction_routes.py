@@ -7,6 +7,9 @@ from services.matching_service import _candidate_summary, evaluate_eligibility, 
 
 
 match_interaction_bp = Blueprint('match_interactions', __name__, url_prefix='/api/matching')
+REQUEST_TRANSITIONS = {
+    'pending': {'accepted': 'receiver', 'declined': 'receiver', 'withdrawn': 'sender'},
+}
 
 
 def _approved_user():
@@ -48,6 +51,7 @@ def _request_payload(item, viewer, direction):
     candidate = item.receiver if direction == 'sent' else item.sender
     return {
         'id': item.id,
+        'candidate_ref': candidate.id if candidate else (item.receiver_id if direction == 'sent' else item.sender_id),
         'direction': direction,
         'status': item.status,
         'created_at': item.created_at.isoformat(),
@@ -91,6 +95,14 @@ def create_request():
         message = 'لديك طلب وارد من هذا المرشح.' if existing.receiver_id == user.id and existing.status == 'pending' else 'سبق تسجيل طلب توافق لهذا المرشح.'
         return jsonify({'success': True, 'message': message, 'request': _request_payload(existing, user, 'incoming' if existing.receiver_id == user.id else 'sent')}), 200
 
+    active_outgoing = CompatibilityRequest.query.filter_by(sender_id=user.id, status='pending').first()
+    if active_outgoing:
+        return jsonify({
+            'success': False,
+            'code': 'active_outgoing_request',
+            'message': 'لديك طلب توافق قائم حالياً. يمكنك سحبه قبل إرسال طلب جديد.',
+        }), 409
+
     item = CompatibilityRequest(sender_id=user.id, receiver_id=candidate.id, status='pending')
     db.session.add(item)
     db.session.add(Notification(user_id=candidate.id, message='لديك طلب توافق جديد.'))
@@ -106,18 +118,25 @@ def update_request(request_id):
     item = CompatibilityRequest.query.get(request_id)
     if not item:
         return jsonify({'success': False, 'message': 'طلب التوافق غير موجود.'}), 404
-    if item.receiver_id != user.id:
-        return jsonify({'success': False, 'message': 'لا يمكنك تعديل هذا الطلب.'}), 403
-    if item.status != 'pending':
-        return jsonify({'success': False, 'message': 'تمت معالجة هذا الطلب من قبل.'}), 409
     status = (request.get_json(silent=True) or {}).get('status')
-    if status not in ('accepted', 'declined'):
+    required_actor = REQUEST_TRANSITIONS.get(item.status, {}).get(status)
+    if not required_actor:
         return jsonify({'success': False, 'message': 'حالة الطلب غير صالحة.'}), 400
+    actor_id = item.sender_id if required_actor == 'sender' else item.receiver_id
+    if actor_id != user.id:
+        return jsonify({'success': False, 'message': 'لا يمكنك تنفيذ هذا الإجراء على الطلب.'}), 403
     item.status = status
-    notice = 'تم قبول طلب التوافق الذي أرسلته.' if status == 'accepted' else 'تم الاعتذار عن طلب التوافق الذي أرسلته.'
-    db.session.add(Notification(user_id=item.sender_id, message=notice))
+    notices = {
+        'accepted': (item.sender_id, 'تم قبول طلب التوافق الذي أرسلته.'),
+        'declined': (item.sender_id, 'تم رفض طلب التوافق الذي أرسلته.'),
+        'withdrawn': (item.receiver_id, 'تم سحب طلب التوافق الوارد.'),
+    }
+    notified_user_id, notice = notices[status]
+    db.session.add(Notification(user_id=notified_user_id, message=notice))
     db.session.commit()
-    return jsonify({'success': True, 'message': 'تم قبول الطلب.' if status == 'accepted' else 'تم رفض الطلب.', 'request': _request_payload(item, user, 'incoming')}), 200
+    messages = {'accepted': 'تم قبول الطلب.', 'declined': 'تم رفض الطلب.', 'withdrawn': 'تم سحب الطلب.'}
+    direction = 'sent' if item.sender_id == user.id else 'incoming'
+    return jsonify({'success': True, 'message': messages[status], 'request': _request_payload(item, user, direction)}), 200
 
 
 @match_interaction_bp.route('/saved', methods=['GET'])

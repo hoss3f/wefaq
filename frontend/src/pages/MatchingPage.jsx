@@ -16,9 +16,11 @@ const REQUEST_LABELS = {
   'sent-pending': 'تم إرسال الطلب',
   'sent-accepted': 'تم قبول الطلب',
   'sent-declined': 'تم الاعتذار عن الطلب',
+  'sent-withdrawn': 'تم سحب الطلب',
   'incoming-pending': 'لديك طلب وارد',
   'incoming-accepted': 'طلب مقبول',
   'incoming-declined': 'طلب مرفوض',
+  'incoming-withdrawn': 'طلب مسحوب',
 }
 
 export default function MatchingPage() {
@@ -28,6 +30,7 @@ export default function MatchingPage() {
   const [index, setIndex] = useState(0)
   const [savedRefs, setSavedRefs] = useState(new Set())
   const [requestStates, setRequestStates] = useState(new Map())
+  const [activeOutgoingRef, setActiveOutgoingRef] = useState(null)
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -47,6 +50,8 @@ export default function MatchingPage() {
           if (item.available) states.set(item.candidate.candidate_ref, `${item.direction}-${item.status}`)
         })
         setRequestStates(states)
+        const activeOutgoing = (requestData.sent || []).find((item) => item.status === 'pending')
+        setActiveOutgoingRef(activeOutgoing?.candidate?.candidate_ref ?? activeOutgoing?.candidate_ref ?? null)
         const requestedRef = Number(searchParams.get('candidate'))
         const requestedIndex = nextMatches.findIndex((item) => item.candidate.candidate_ref === requestedRef)
         if (requestedIndex >= 0) setIndex(requestedIndex)
@@ -58,7 +63,8 @@ export default function MatchingPage() {
   const candidateRef = match?.candidate?.candidate_ref
   const isSaved = savedRefs.has(candidateRef)
   const requestState = requestStates.get(candidateRef)
-  const requestLabel = useMemo(() => REQUEST_LABELS[requestState] || 'إرسال طلب توافق', [requestState])
+  const anotherRequestIsActive = activeOutgoingRef != null && activeOutgoingRef !== candidateRef
+  const requestLabel = useMemo(() => anotherRequestIsActive ? 'لديك طلب توافق قيد الانتظار' : REQUEST_LABELS[requestState] || 'إرسال طلب توافق', [anotherRequestIsActive, requestState])
 
   function next() {
     setIndex((current) => (current + 1) % matches.length)
@@ -67,6 +73,7 @@ export default function MatchingPage() {
   }
 
   async function handleRequest() {
+    if (anotherRequestIsActive) return navigate('/compatibility-requests')
     if (requestState) {
       if (requestState.startsWith('incoming-')) navigate('/compatibility-requests')
       return
@@ -77,6 +84,7 @@ export default function MatchingPage() {
     try {
       const data = await sendCompatibilityRequest(candidateRef)
       setRequestStates((current) => new Map(current).set(candidateRef, `${data.request.direction}-${data.request.status}`))
+      if (data.request.direction === 'sent' && data.request.status === 'pending') setActiveOutgoingRef(candidateRef)
       setMessage(data.message)
     } catch (err) {
       setError(err.message)
@@ -125,13 +133,14 @@ export default function MatchingPage() {
         {match.compatibility_summary && <p className="mt-4 text-sm leading-6 text-muted">{match.compatibility_summary}</p>}
         {(message || error) && <p role="status" className={`mt-4 rounded-xl px-4 py-3 text-sm ${error ? 'bg-brick-100 text-brick-500' : 'bg-teal-50 text-teal-700'}`}>{error || message}</p>}
         <div className="mt-6 grid grid-cols-2 gap-3">
-          <Button onClick={handleRequest} disabled={busy === 'request' || (requestState && !requestState.startsWith('incoming-'))} className="min-h-14 px-3">
+          <Button onClick={handleRequest} disabled={busy === 'request' || anotherRequestIsActive || (requestState && !requestState.startsWith('incoming-'))} className="min-h-14 px-3">
             {busy === 'request' ? 'جارٍ الإرسال...' : requestLabel}
           </Button>
           <Button variant="secondary" onClick={handleSave} disabled={busy === 'save'} className="min-h-14 px-3">
             {busy === 'save' ? 'جارٍ الحفظ...' : isSaved ? 'إزالة من المحفوظات' : 'حفظ المرشح'}
           </Button>
         </div>
+        {activeOutgoingRef != null && <button type="button" onClick={() => navigate('/compatibility-requests')} className="mt-3 min-h-11 w-full rounded-xl bg-gold-100/60 px-4 text-sm font-medium text-gold-700">إدارة الطلب القائم</button>}
         <button type="button" onClick={next} className="mt-3 min-h-12 w-full rounded-xl text-sm font-medium text-muted hover:bg-teal-50">عرض المرشح التالي ←</button>
       </CandidateProfileCard>
       <ApprovedUserNav />

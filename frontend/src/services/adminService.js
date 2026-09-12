@@ -7,8 +7,7 @@ export function listUsers({
   scope,
   requestingAdminId,
   assignedAdminId,
-  education,
-  financial
+  education
 } = {}) {
   const params = new URLSearchParams()
   if (status) params.set('status', status)
@@ -16,9 +15,12 @@ export function listUsers({
   if (requestingAdminId) params.set('requesting_admin_id', requestingAdminId)
   if (assignedAdminId) params.set('assigned_admin_id', assignedAdminId)
   if (education) params.set('education', education)
-  if (financial) params.set('financial', financial)
   const query = params.toString()
   return apiGet(`/admin/users${query ? `?${query}` : ''}`)
+}
+
+export function getCompatibilityRequestsForAdmin(userId) {
+  return apiGet(`/admin/matching/requests?user_id=${userId}`)
 }
 
 /** تحديث حالة طلب مستخدم مع سبب اختياري */

@@ -129,7 +129,7 @@ export default function UserDashboardPage() {
         <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between"><div><h2 className="font-display text-2xl text-teal-700">إجابات الطلب</h2><p className="mt-1 text-sm text-muted">راجع المعلومات التي قدمتها عند التسجيل.</p></div><span className="text-2xl text-gold-700 transition-transform group-open:rotate-45">＋</span></summary>
         <div className="mt-6 space-y-7">
           {answerSteps.length > 0 && <AnswerGroup title="بيانات الملف" items={answerSteps.map((step) => [step.title, displayAnswer(profileDetails[step.key])])} />}
-          {mcqAnswers && <AnswerGroup title="أسئلة الاختيار" items={(questions?.mcq || []).map((question) => [question.question, mcqAnswers[`q${question.id}`]])} />}
+          {mcqAnswers && <AnswerGroup title="أسئلة الاختيار" items={(questions?.mcq || []).filter((question) => question.active !== false).map((question) => [question.question, mcqAnswers[`q${question.id}`]])} />}
           {openAnswers && <AnswerGroup title="الأسئلة المفتوحة" items={(questions?.open || []).map((question, index) => [question, openAnswers[`q${index + 1}`]])} />}
         </div>
       </details>

@@ -43,8 +43,8 @@ class MatchingServiceTests(unittest.TestCase):
         self.a = candidate(1, 'ذكر', age=30)
         self.b = candidate(2, 'أنثى', age=28)
 
-    def test_current_configuration_discovers_all_nine_factors(self):
-        self.assertEqual(len(matching_factors()), 9)
+    def test_current_configuration_discovers_all_active_factors(self):
+        self.assertEqual(len(matching_factors()), 8)
 
     def test_identical_answers_are_high(self):
         self.assertGreaterEqual(score_pair(self.a, self.b)['compatibility_percentage'], 90)
@@ -71,7 +71,7 @@ class MatchingServiceTests(unittest.TestCase):
         result = score_pair(self.a, self.b)
         self.assertIn('age_preference', result['breakdown'])
         self.assertEqual(len(result['breakdown']['age_preference']['directional_scores']), 2)
-        self.assertEqual(result['applicable_factors'], 9)
+        self.assertEqual(result['applicable_factors'], 8)
 
     def test_multiselect_uses_normalized_overlap(self):
         self.assertGreater(score_multi_select(['قراءة', 'سفر'], ['قراءة', 'سفر', 'تطوع'], {}), score_multi_select(['قراءة'], ['رياضة'], {}))
@@ -193,7 +193,7 @@ class MatchingApiTests(unittest.TestCase):
         response = self.client.get(f'/api/admin/users/{self.male_id}/matches', headers={'X-Admin-Id': str(self.admin_id)})
         self.assertEqual(response.status_code, 200)
         match = response.get_json()['matches'][0]
-        self.assertEqual(match['applicable_factors'], 9)
+        self.assertEqual(match['applicable_factors'], 8)
         self.assertIn('age_preference', match['breakdown'])
 
     def test_pair_endpoint_keeps_eligibility_separate(self):

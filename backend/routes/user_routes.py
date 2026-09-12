@@ -22,6 +22,15 @@ UPDATABLE_FIELDS = [
     'guardian_phone', 'guardian_relation'
 ]
 
+MARITAL_OPTIONS = {
+    'ذكر': {'أعزب', 'متزوج', 'مطلق', 'أرمل'},
+    'أنثى': {'عزباء', 'متزوجة', 'مطلقة', 'أرملة'},
+}
+LEGACY_MARITAL_OPTIONS = {'لم أتزوج من قبل', 'متزوج سابقاً'}
+SKIN_TONE_OPTIONS = {'فاتح', 'قمحي', 'أسمر', 'داكن'}
+BODY_TYPE_OPTIONS = {'نحيف', 'متوسط', 'رياضي', 'ممتلئ'}
+REGISTRANT_RELATIONS = {'أنا صاحب الطلب', 'أنا وليّ أمر صاحب الطلب', 'أنا أحد أفراد أسرته'}
+
 
 def _parse_birthday(value):
     try:
@@ -30,20 +39,87 @@ def _parse_birthday(value):
         return None
 
 
+def _valid_full_name(value):
+    name = sanitize_text(value, 100)
+    return name if 2 <= len(name) <= 100 and any(character.isalpha() for character in name) else None
+
+
+def _preference_nationalities():
+    questions = load_questions() or {}
+    for step in questions.get('onboarding', {}).get('steps', []):
+        for field in step.get('fields', []):
+            if field.get('key') == 'nationality_preference':
+                return set(field.get('options') or [])
+    return set()
+
+
+def _validate_profile_details(details, gender):
+    if not isinstance(details, dict):
+        return None, 'بيانات الملف غير صالحة.'
+    normalized = dict(details)
+    required = ['registrant_relation', 'nationality', 'profession', 'marital_status', 'marriage_timeline', 'height', 'weight', 'skin_tone', 'body_type']
+    if gender == 'أنثى':
+        required.append('polygyny_acceptance')
+    missing = [field for field in required if normalized.get(field) in (None, '', [])]
+    if missing:
+        return None, 'يرجى إكمال جميع بيانات الملف المطلوبة.'
+
+    allowed_marital = MARITAL_OPTIONS.get(gender, set()) | LEGACY_MARITAL_OPTIONS
+    if normalized.get('marital_status') not in allowed_marital:
+        return None, 'الحالة الاجتماعية غير صالحة.'
+    if normalized.get('skin_tone') not in SKIN_TONE_OPTIONS:
+        return None, 'قيمة لون البشرة غير صالحة.'
+    if normalized.get('body_type') not in BODY_TYPE_OPTIONS:
+        return None, 'قيمة القوام غير صالحة.'
+    if normalized.get('registrant_relation') not in REGISTRANT_RELATIONS:
+        return None, 'صلة المسجّل بصاحب الطلب غير صالحة.'
+    if gender == 'أنثى' and normalized.get('polygyny_acceptance') not in ('نعم', 'لا'):
+        return None, 'يرجى تحديد الإجابة المتعلقة بتعدد الزوجات.'
+    if gender != 'أنثى' and normalized.get('polygyny_acceptance') not in (None, ''):
+        return None, 'هذا الحقل مخصص للمرشحات فقط.'
+
+    nationalities = normalized.get('nationality_preference')
+    if isinstance(nationalities, str):
+        nationalities = [nationalities]
+    if not isinstance(nationalities, list) or not nationalities:
+        return None, 'يرجى اختيار جنسية مفضلة واحدة على الأقل.'
+    cleaned = [sanitize_text(value, 60) for value in nationalities]
+    if any(not value for value in cleaned) or len(cleaned) != len(set(cleaned)):
+        return None, 'قائمة الجنسيات المفضلة غير صالحة أو تحتوي على تكرار.'
+    allowed_nationalities = _preference_nationalities()
+    if allowed_nationalities and any(value not in allowed_nationalities for value in cleaned):
+        return None, 'تحتوي قائمة الجنسيات المفضلة على قيمة غير معتمدة.'
+    if 'لا يهم' in cleaned and len(cleaned) > 1:
+        return None, 'لا يمكن جمع خيار «لا يهم» مع جنسيات أخرى.'
+    normalized['nationality_preference'] = cleaned
+    return normalized, None
+
+
+def _validate_open_answers(open_data):
+    for number in range(1, 5):
+        answer = sanitize_text(open_data.get(f'q{number}'), 1500)
+        minimum = 20 if number == 1 else 5
+        if len(answer) < minimum:
+            return False, 'يرجى كتابة إجابة أوضح قبل المتابعة.'
+        open_data[f'q{number}'] = answer
+    return True, None
+
+
 def _apply_personal_data(user, data):
     """تطبيق البيانات الشخصية على كائن المستخدم مع التحقق"""
     missing = [field for field in REQUIRED_FIELDS if not data.get(field)]
     if missing:
         return False, {'success': False, 'message': 'حقول ناقصة', 'missing_fields': missing}, 400
 
-    if is_placeholder_name(data.get('full_name')):
-        return False, {'success': False, 'message': 'الرجاء إدخال الاسم الكامل الحقيقي'}, 400
+    full_name = _valid_full_name(data.get('full_name'))
+    if not full_name or is_placeholder_name(full_name):
+        return False, {'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.'}, 400
 
     birthday = _parse_birthday(data.get('birthday'))
     if not birthday:
         return False, {'success': False, 'message': 'صيغة تاريخ الميلاد غير صحيحة'}, 400
 
-    user.full_name = data['full_name'].strip()
+    user.full_name = full_name
     user.birthday = birthday
     user.gender = data['gender']
     user.country = data['country']
@@ -59,13 +135,9 @@ def _apply_personal_data(user, data):
     elif 'email' in data:
         user.email = ''
 
-    details = data.get('profile_details') or {}
-    if not isinstance(details, dict):
-        return False, {'success': False, 'message': 'Profile details are invalid'}, 400
-    required_details = ['nationality', 'profession', 'marital_status', 'marriage_timeline', 'height', 'weight']
-    missing_details = [field for field in required_details if not details.get(field)]
-    if missing_details:
-        return False, {'success': False, 'message': 'Profile fields are missing', 'missing_fields': missing_details}, 400
+    details, detail_error = _validate_profile_details(data.get('profile_details') or {}, user.gender)
+    if detail_error:
+        return False, {'success': False, 'message': detail_error}, 400
     profile = UserProfile.query.filter_by(user_id=user.id).first() or UserProfile(user_id=user.id)
     profile.details = details
     db.session.add(profile)
@@ -148,8 +220,9 @@ def register_user():
             'missing_fields': missing
         }), 400
 
-    if is_placeholder_name(data.get('full_name')):
-        return jsonify({'success': False, 'message': 'الرجاء إدخال الاسم الكامل الحقيقي'}), 400
+    full_name = _valid_full_name(data.get('full_name'))
+    if not full_name or is_placeholder_name(full_name):
+        return jsonify({'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.'}), 400
 
     birthday = _parse_birthday(data.get('birthday'))
     if not birthday:
@@ -168,7 +241,7 @@ def register_user():
 
     new_user = User(
         code=generate_user_code(User),
-        full_name=data['full_name'].strip(),
+        full_name=full_name,
         phone=data['phone'],
         email=data['email'],
         birthday=birthday,
@@ -193,9 +266,9 @@ def register_user():
 @user_bp.route('/users/<int:user_id>/answers', methods=['POST'])
 def save_answers(user_id):
     """حفظ إجابات الأسئلة المغلقة والمفتوحة لمستخدم معيّن"""
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'message': 'المستخدم غير موجود'}), 404
+    user, error = require_user_self(user_id)
+    if error:
+        return error
 
     data = request.get_json() or {}
     mcq_data = data.get('mcq', {})
@@ -215,9 +288,9 @@ def complete_application(user_id):
     إكمال طلب مستخدم بالكود لأول مرة:
     حفظ البيانات الشخصية + الإجابات في طلب واحد ثم تحويل الحالة إلى قيد المراجعة.
     """
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'success': False, 'message': 'المستخدم غير موجود'}), 404
+    user, error = require_user_self(user_id)
+    if error:
+        return error
 
     data = request.get_json() or {}
     personal = data.get('personal') or data
@@ -241,8 +314,9 @@ def complete_application(user_id):
     if not ok:
         return jsonify(err_body), err_code
 
-    if not all(open_data.get(f'q{i}') for i in range(1, 5)):
-        return jsonify({'success': False, 'message': 'الرجاء الإجابة عن جميع الأسئلة المفتوحة'}), 400
+    open_ok, open_error = _validate_open_answers(open_data)
+    if not open_ok:
+        return jsonify({'success': False, 'message': open_error}), 400
 
     _upsert_answers(user_id, mcq_data, open_data)
     user.status = 'reviewing'
@@ -316,8 +390,10 @@ def update_user(user_id):
     for field in UPDATABLE_FIELDS:
         if field in data and data[field] is not None:
             value = data[field]
-            if field == 'full_name' and is_placeholder_name(value):
-                return jsonify({'success': False, 'message': 'الرجاء إدخال الاسم الكامل الحقيقي'}), 400
+            if field == 'full_name':
+                value = _valid_full_name(value)
+                if not value or is_placeholder_name(value):
+                    return jsonify({'success': False, 'message': 'يرجى إدخال الاسم الكامل الحقيقي.'}), 400
             setattr(user, field, value)
 
     if 'birthday' in data and data['birthday']:

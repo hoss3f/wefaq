@@ -68,7 +68,7 @@ export default function RegisterPage() {
       }
     }
     if (stepIndex === 1) {
-      const unanswered = (questions?.mcq || []).some((q) => !mcqAnswers[`q${q.id}`])
+      const unanswered = (questions?.mcq || []).filter((question) => question.active !== false).some((q) => !mcqAnswers[`q${q.id}`])
       if (unanswered) {
         setError('الرجاء الإجابة على جميع أسئلة الاختيار')
         return
@@ -89,7 +89,7 @@ export default function RegisterPage() {
       const registerRes = await registerUser(personal, photoFile)
       const userId = registerRes.user.id
 
-      await saveAnswers(userId, mcqAnswers, openAnswers)
+      await saveAnswers(userId, mcqAnswers, openAnswers, registerRes.user.code)
 
       setResultCode(registerRes.user.code)
     } catch (err) {
@@ -152,7 +152,7 @@ export default function RegisterPage() {
         {stepIndex === 1 && (
           <div>
             <h2 className="font-display text-xl text-teal-700 mb-4">أسئلة الاختيار من متعدد</h2>
-            {questions?.mcq.map((q) => (
+            {questions?.mcq.filter((question) => question.active !== false).map((q) => (
               <div key={q.id} className="mb-5">
                 <p className="mb-2 font-medium">{q.question}</p>
                 <div className="flex flex-wrap gap-2">
@@ -216,7 +216,7 @@ export default function RegisterPage() {
               </div>
               <div className="bg-teal-50 rounded-xl p-4 space-y-1">
                 <p className="font-medium text-teal-700 mb-2">أسئلة الاختيار</p>
-                {(questions?.mcq || []).map((q) => (
+                {(questions?.mcq || []).filter((question) => question.active !== false).map((q) => (
                   <p key={q.id}>
                     <span className="text-muted">{q.question}:</span> {mcqAnswers[`q${q.id}`] || '—'}
                   </p>

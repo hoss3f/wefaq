@@ -21,8 +21,8 @@ export function registerUser(personalData, photoFile) {
 }
 
 /** حفظ إجابات المستخدم على الأسئلة المغلقة والمفتوحة */
-export function saveAnswers(userId, mcqAnswers, openAnswers) {
-  return apiPost(`/users/${userId}/answers`, { mcq: mcqAnswers, open: openAnswers })
+export function saveAnswers(userId, mcqAnswers, openAnswers, code) {
+  return apiPost(`/users/${userId}/answers`, { mcq: mcqAnswers, open: openAnswers, code })
 }
 
 /** إكمال طلب مستخدم بالكود (بيانات + إجابات) في طلب واحد */

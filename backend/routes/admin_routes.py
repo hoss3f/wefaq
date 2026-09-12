@@ -1,7 +1,6 @@
 # backend/routes/admin_routes.py
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from models import db, User, Admin, AdminNote, Notification
 from utils import photo_url_for
 from security import (
     admin_required,
@@ -13,12 +12,39 @@ from security import (
     validate_admin_password,
     MAX_NOTE_LEN,
 )
-from models import db, User, Admin, AdminNote, Notification, ActivityLog, MCQAnswer
+from models import db, User, Admin, AdminNote, Notification, ActivityLog, MCQAnswer, CompatibilityRequest
 from sqlalchemy.orm import joinedload
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 VALID_STATUSES = ['pending', 'reviewing', 'approved', 'rejected']
+
+REQUEST_STATE_LABELS = {
+    'none': 'لا يوجد طلب توافق نشط',
+    'outgoing_pending': 'أرسل طلب توافق',
+    'incoming_pending': 'لديه طلب توافق وارد',
+    'accepted': 'تم التوافق',
+    'declined': 'تم رفض الطلب',
+    'withdrawn': 'تم سحب الطلب',
+}
+REQUEST_STATE_PRIORITY = {'none': 0, 'withdrawn': 1, 'declined': 2, 'outgoing_pending': 3, 'incoming_pending': 3, 'accepted': 4}
+
+
+def _request_state_map(user_ids):
+    states = {user_id: 'none' for user_id in user_ids}
+    if not user_ids:
+        return states
+    rows = CompatibilityRequest.query.filter(
+        db.or_(CompatibilityRequest.sender_id.in_(user_ids), CompatibilityRequest.receiver_id.in_(user_ids))
+    ).order_by(CompatibilityRequest.updated_at.desc()).all()
+    for item in rows:
+        for user_id, pending_state in ((item.sender_id, 'outgoing_pending'), (item.receiver_id, 'incoming_pending')):
+            if user_id not in states:
+                continue
+            state = pending_state if item.status == 'pending' else item.status
+            if REQUEST_STATE_PRIORITY.get(state, 0) > REQUEST_STATE_PRIORITY.get(states[user_id], 0):
+                states[user_id] = state
+    return states
 
 
 def _require_super_admin(admin_id):
@@ -54,6 +80,7 @@ def _user_list_item(user):
 
 
 @admin_bp.route('/users', methods=['GET'])
+@admin_required
 def list_users():
     """إرجاع قائمة المستخدمين مع تصفية اختيارية"""
     status_filter = request.args.get('status')
@@ -87,6 +114,7 @@ def list_users():
             query = query.filter(MCQAnswer.q2 == financial)
 
     users = query.options(joinedload(User.assigned_admin)).order_by(User.created_at.desc()).all()
+    request_states = _request_state_map([user.id for user in users])
 
     return jsonify({
         'success': True,
@@ -102,6 +130,8 @@ def list_users():
             'assigned_admin_id': u.assigned_admin_id,
             'created_at': u.created_at.isoformat() if u.created_at else None,
             'photo_url': photo_url_for(u.photo_path),
+            'match_request_status': request_states[u.id],
+            'match_request_label': REQUEST_STATE_LABELS[request_states[u.id]],
         } for u in users]
     }), 200
 

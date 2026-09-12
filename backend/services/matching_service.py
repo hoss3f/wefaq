@@ -130,10 +130,12 @@ def _directional_preference_score(owner, candidate, factor):
     actual = _value(candidate, factor.get('matching_actual_source', 'profile'), factor.get('matching_actual_key'))
     if not _valid(preference) or not _valid(actual):
         return None
-    if preference in factor.get('matching_neutral_options', []):
+    preferences = list(preference) if isinstance(preference, (list, tuple, set)) else [preference]
+    if any(value in factor.get('matching_neutral_options', []) for value in preferences):
         return 100.0
-    preference = factor.get('matching_aliases', {}).get(str(preference), preference)
-    return 100.0 if preference == actual else 0.0
+    aliases = factor.get('matching_aliases', {})
+    preferences = [aliases.get(str(value), value) for value in preferences]
+    return 100.0 if actual in preferences else 0.0
 
 
 def _pair_preference_score(user_a, user_b, factor):
@@ -200,10 +202,27 @@ def score_pair(user_a, user_b, *, factors=None, allowed_statuses=None, **_):
 
 def _candidate_summary(user, *, private=False):
     details = _profile_details(user)
+    open_answers = getattr(user, 'open_answers', None)
+    nationality_preference = details.get('nationality_preference')
+    if nationality_preference and not isinstance(nationality_preference, list):
+        nationality_preference = [nationality_preference]
     summary = {'gender': user.gender, 'country': user.country, 'age': compute_age(user.birthday),
-               'nationality': details.get('nationality'), 'profession': details.get('profession'),
-               'marital_status': details.get('marital_status'), 'marriage_timeline': details.get('marriage_timeline'),
-               'height': details.get('height'), 'profile_description': user.open_answers.q1 if getattr(user, 'open_answers', None) else None}
+               'nationality': details.get('nationality'), 'education': _value(user, 'mcq', 'q1'),
+               'profession': details.get('profession'),
+               'marital_status': ({'لم أتزوج من قبل': 'أعزب' if user.gender == 'ذكر' else 'عزباء',
+                                   'متزوج سابقاً': 'سبق له الزواج' if user.gender == 'ذكر' else 'سبق لها الزواج'}
+                                  .get(details.get('marital_status'), details.get('marital_status'))),
+               'marriage_timeline': details.get('marriage_timeline'),
+               'has_children': details.get('has_children'), 'kids_count': details.get('kids_count'),
+               'height': details.get('height'), 'body_type': details.get('body_type'), 'skin_tone': details.get('skin_tone'),
+               'polygyny_acceptance': details.get('polygyny_acceptance'),
+               'preferred_age_min': details.get('age_min'), 'preferred_age_max': details.get('age_max'),
+               'preferred_nationalities': nationality_preference, 'preferred_marital_status': details.get('marital_preference'),
+               'marriage_country_preference': _value(user, 'mcq', 'q3'),
+               'partner_priority': _value(user, 'mcq', 'q4'),
+               'profile_description': getattr(open_answers, 'q1', None) if open_answers else None,
+               'partner_description': getattr(open_answers, 'q2', None) if open_answers else None,
+               'marriage_expectations': getattr(open_answers, 'q3', None) if open_answers else None}
     # Public candidates need only an opaque database reference so authenticated
     # users can save or request compatibility without exposing identity fields.
     return {'candidate_ref': user.id, **summary} if private else {'id': user.id, 'code': user.code, 'full_name': user.full_name, 'status': user.status, **summary}

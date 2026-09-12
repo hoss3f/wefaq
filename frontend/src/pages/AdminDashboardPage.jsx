@@ -15,7 +15,8 @@ import {
   deleteUser,
   deleteAdmin,
   createAdmin,
-  assignUserCase
+  assignUserCase,
+  getCompatibilityRequestsForAdmin
 } from '../services/adminService'
 import { getUser, getQuestions } from '../services/userService'
 import { getMatchesForUser } from '../services/matchingService'
@@ -34,7 +35,7 @@ const SCOPE_FILTERS = [
   { key: 'by_admin', label: 'تصفية حسب المسؤول' }
 ]
 const EDUCATION_OPTIONS = ['ثانوي', 'دبلوم', 'بكالوريوس', 'ماجستير', 'دكتوراه']
-const FINANCIAL_OPTIONS = ['بسيط', 'متوسط', 'مرتفع', 'لا يهم']
+const REQUEST_STATUS_LABELS = { pending: 'قيد الانتظار', accepted: 'تم التوافق', declined: 'تم الرفض', withdrawn: 'تم سحب الطلب' }
 
 function calcAge(birthday) {
   if (!birthday) return null
@@ -94,7 +95,6 @@ export default function AdminDashboardPage() {
   const [scopeFilter, setScopeFilter] = useState('all')
   const [assignedAdminFilter, setAssignedAdminFilter] = useState('')
   const [educationFilter, setEducationFilter] = useState('')
-  const [financialFilter, setFinancialFilter] = useState('')
   const [selectedUserId, setSelectedUserId] = useState(null)
   const [notes, setNotes] = useState([])
   const [noteText, setNoteText] = useState('')
@@ -113,6 +113,7 @@ export default function AdminDashboardPage() {
   const [loadingMatches, setLoadingMatches] = useState(false)
   const [expandedMatchId, setExpandedMatchId] = useState(null)
   const [assigningUserId, setAssigningUserId] = useState(null)
+  const [requestRecords, setRequestRecords] = useState([])
 
   useEffect(() => {
     const stored = localStorage.getItem('wefaq_admin')
@@ -148,7 +149,6 @@ export default function AdminDashboardPage() {
     const params = {
       status: filter === 'all' ? undefined : filter,
       education: educationFilter || undefined,
-      financial: financialFilter || undefined,
       requestingAdminId: admin.id
     }
     if (scopeFilter === 'mine') {
@@ -163,7 +163,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!admin) return
     refreshUsers().catch(() => setError('تعذر جلب قائمة المستخدمين'))
-  }, [admin, filter, scopeFilter, assignedAdminFilter, educationFilter, financialFilter])
+  }, [admin, filter, scopeFilter, assignedAdminFilter, educationFilter])
 
   useEffect(() => {
     if (!admin?.is_super_admin || panelTab !== 'admins') return
@@ -208,11 +208,13 @@ export default function AdminDashboardPage() {
     setError('')
     setSelectedUserId(userId)
     setMatches([])
+    setRequestRecords([])
     setExpandedMatchId(null)
     try {
-      const [detail, notesData] = await Promise.all([getUser(userId), getNotes(userId)])
+      const [detail, notesData, requestData] = await Promise.all([getUser(userId), getNotes(userId), getCompatibilityRequestsForAdmin(userId)])
       setUserDetail(detail)
       setNotes(notesData.notes)
+      setRequestRecords(requestData.requests || [])
       loadMatches(userId)
     } catch (err) {
       setError(err.message || 'تعذر جلب تفاصيل المستخدم')
@@ -504,29 +506,19 @@ export default function AdminDashboardPage() {
                 <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
-            <select
-              value={financialFilter}
-              onChange={(e) => setFinancialFilter(e.target.value)}
-              className="rounded-xl border border-teal-100 px-3 py-2 bg-linen text-sm"
-            >
-              <option value="">المستوى المادي</option>
-              {FINANCIAL_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
           </div>
 
           <Card className="mb-6">
             <h2 className="font-display text-lg text-teal-700 mb-3">توليد كود مستخدم جديد</h2>
             <p className="text-muted text-sm mb-4">
-              أدخل اسم المتقدم إن رغبت، أو اترك الحقل فارغاً ليُحفظ كـ «متقدم جديد»، ثم ولّد الكود.
+              يمكن إدخال الاسم الكامل إن كان متاحاً الآن، أو تركه فارغاً ليكتبه صاحب الطلب عند إكمال التسجيل.
             </p>
             <div className="flex gap-3 items-start flex-wrap">
               <input
                 type="text"
                 value={newUserName}
                 onChange={(e) => setNewUserName(e.target.value)}
-                placeholder="متقدم جديد"
+                placeholder="الاسم الكامل (اختياري عند إصدار الرمز)"
                 className="flex-1 min-w-[220px] rounded-xl border border-teal-100 px-4 py-3 bg-linen focus-visible:outline-2 focus-visible:outline-gold-500"
               />
               <Button onClick={handleGenerateCode} disabled={generating}>
@@ -549,6 +541,7 @@ export default function AdminDashboardPage() {
                     <th className="text-right py-2">الكود</th>
                     <th className="text-right py-2">المسؤول</th>
                     <th className="text-right py-2">الحالة</th>
+                    <th className="text-right py-2">حالة التوافق</th>
                     <th className="text-right py-2">إجراء</th>
                   </tr>
                 </thead>
@@ -588,6 +581,7 @@ export default function AdminDashboardPage() {
                         )}
                       </td>
                       <td className="py-3"><StatusBadge status={u.status} /></td>
+                      <td className="py-3"><span className={`inline-block rounded-full px-2.5 py-1 text-xs ${u.match_request_status === 'accepted' ? 'bg-teal-600 text-linen' : u.match_request_status?.includes('pending') ? 'bg-gold-100 text-gold-700' : 'bg-teal-50 text-muted'}`}>{u.match_request_label || 'لا يوجد طلب توافق نشط'}</span></td>
                       <td className="py-3 whitespace-nowrap">
                         <div className="inline-flex flex-row flex-nowrap items-center gap-2">
                           <select
@@ -617,7 +611,7 @@ export default function AdminDashboardPage() {
                   ))}
                   {filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-muted">لا يوجد طلبات ضمن هذا التصنيف</td>
+                      <td colSpan={6} className="py-6 text-center text-muted">لا توجد طلبات ضمن هذا التصنيف</td>
                     </tr>
                   )}
                 </tbody>
@@ -698,6 +692,21 @@ export default function AdminDashboardPage() {
                 </p>
               </div>
 
+              <div className="mb-6 border-t border-teal-100 pt-5">
+                <h3 className="mb-3 font-display text-base text-teal-700">بيانات الملف</h3>
+                <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                  {[
+                    ['صلة المسجّل بصاحب الطلب', 'registrant_relation'], ['الجنسية', 'nationality'],
+                    ['المهنة', 'profession'], ['الحالة الاجتماعية', 'marital_status'],
+                    ['لديه أطفال', 'has_children'], ['عدد الأطفال', 'kids_count'],
+                    ['الطول', 'height'], ['الوزن', 'weight'], ['القوام', 'body_type'],
+                    ['لون البشرة', 'skin_tone'], ['موعد الزواج المفضل', 'marriage_timeline'],
+                    ['قبول تعدد الزوجات', 'polygyny_acceptance'],
+                  ].map(([label, key]) => <div key={key}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 text-ink">{userDetail.profile_details?.[key] || '—'}</dd></div>)}
+                  <div className="sm:col-span-2"><dt className="text-xs text-muted">الجنسيات المفضلة للشريك</dt><dd className="mt-2 flex flex-wrap gap-2">{(Array.isArray(userDetail.profile_details?.nationality_preference) ? userDetail.profile_details.nationality_preference : userDetail.profile_details?.nationality_preference ? [userDetail.profile_details.nationality_preference] : []).map((value) => <span key={value} className="rounded-full bg-teal-50 px-3 py-1 text-xs text-teal-700">{value}</span>)}{!userDetail.profile_details?.nationality_preference && '—'}</dd></div>
+                </dl>
+              </div>
+
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <h3 className="font-display text-base text-teal-700 mb-3">إجابات الاختيار</h3>
@@ -748,6 +757,11 @@ export default function AdminDashboardPage() {
                     <p className="text-muted text-sm">لا توجد إجابات مفتوحة بعد</p>
                   )}
                 </div>
+              </div>
+
+              <div className="mt-6 border-t border-teal-100 pt-6">
+                <h3 className="font-display text-base text-teal-700">سجل طلبات التوافق</h3>
+                {requestRecords.length === 0 ? <p className="mt-3 text-sm text-muted">لا توجد طلبات توافق مرتبطة بهذا المرشح.</p> : <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-teal-100 text-muted"><th className="py-2 text-right">المرسل</th><th className="py-2 text-right">المستلم</th><th className="py-2 text-right">الحالة</th><th className="py-2 text-right">تاريخ الإنشاء</th><th className="py-2 text-right">آخر تحديث</th></tr></thead><tbody>{requestRecords.map((record) => <tr key={record.id} className="border-b border-teal-50"><td className="py-3">{record.sender.full_name}<span className="mr-1 text-xs text-muted">({record.sender.code})</span></td><td className="py-3">{record.receiver.full_name}<span className="mr-1 text-xs text-muted">({record.receiver.code})</span></td><td className="py-3"><span className={`rounded-full px-2.5 py-1 text-xs ${record.status === 'accepted' ? 'bg-teal-600 text-linen' : record.status === 'pending' ? 'bg-gold-100 text-gold-700' : 'bg-teal-50 text-muted'}`}>{REQUEST_STATUS_LABELS[record.status] || record.status}</span></td><td className="py-3">{new Date(record.created_at).toLocaleDateString('ar')}</td><td className="py-3">{new Date(record.updated_at).toLocaleDateString('ar')}</td></tr>)}</tbody></table></div>}
               </div>
 
               <div className="border-t border-teal-100 pt-6 mt-6">

@@ -1,6 +1,7 @@
 # backend/routes/matching_routes.py
 from flask import Blueprint, request, jsonify
-from models import User
+from models import CompatibilityRequest, User
+from sqlalchemy import or_
 from security import admin_required, require_user_self
 from services.matching_service import score_pair, find_matches_for_user, _candidate_summary
 
@@ -110,3 +111,22 @@ def score_user_pair():
         'user_b': _candidate_summary(user_b),
         'match': result,
     }), 200
+
+
+@matching_bp.route('/matching/requests', methods=['GET'])
+@admin_required
+def list_compatibility_requests_for_admin():
+    """Return request lifecycle records with identities for the admin panel only."""
+    user_id = request.args.get('user_id', type=int)
+    query = CompatibilityRequest.query
+    if user_id:
+        query = query.filter(or_(CompatibilityRequest.sender_id == user_id, CompatibilityRequest.receiver_id == user_id))
+    rows = query.order_by(CompatibilityRequest.updated_at.desc()).all()
+    return jsonify({'success': True, 'requests': [{
+        'id': item.id,
+        'sender': {'id': item.sender.id, 'code': item.sender.code, 'full_name': item.sender.full_name},
+        'receiver': {'id': item.receiver.id, 'code': item.receiver.code, 'full_name': item.receiver.full_name},
+        'status': item.status,
+        'created_at': item.created_at.isoformat(),
+        'updated_at': item.updated_at.isoformat(),
+    } for item in rows]}), 200

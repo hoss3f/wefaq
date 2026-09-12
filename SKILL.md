@@ -456,7 +456,15 @@ frontend/src/services/*            API clients (incl. matchingService.js)
 
 ---
 
-*Last aligned with the dynamic one-question-at-a-time onboarding wizard (questions.json `onboarding` config), `UserProfile` extended-profile storage, photo upload support, the rule-based matching/compatibility engine and its admin UI, and `security.py` centralized auth helpers.*
+### Current onboarding and request workflow additions
+
+- `questions.json` now supplies `onboarding.flow`, which orders configured steps, active matching questions (`mcq_q*`), and open questions (`open_*`) without duplicating question definitions.
+- New profile details stay inside `UserProfile.details`: `registrant_relation`, `skin_tone`, `body_type`, and the female-only `polygyny_acceptance`. `nationality_preference` is now stored as an array; the backend still accepts and normalizes a legacy scalar value.
+- The financial MCQ (`q2`) is retained as inactive historical data and is excluded from onboarding, the normal user profile, and active matching factors.
+- `CompatibilityRequest` supports explicit `pending → accepted | declined | withdrawn` transitions. A sender may have only one pending outgoing request; withdrawal is sender-only and keeps the history row.
+- Private discovery summaries expose richer profile information but continue to omit names, contact details, login codes, exact birthdays, and internal user IDs (apart from the opaque `candidate_ref` required for request/save actions).
+
+*Last aligned with the dynamic one-question-at-a-time onboarding wizard (questions.json `onboarding` config), `UserProfile` extended-profile storage, photo upload support, the rule-based matching/compatibility engine and its admin UI, persisted saved/request workflows, and `security.py` centralized auth helpers.*
 
 ---
 

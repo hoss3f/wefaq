@@ -6,8 +6,9 @@ import { getCompatibilityRequests, respondToCompatibilityRequest } from '../serv
 
 const STATUS = {
   pending: ['قيد الانتظار', 'bg-gold-100 text-gold-700'],
-  accepted: ['مقبول', 'bg-teal-50 text-teal-700'],
-  declined: ['مرفوض', 'bg-brick-100 text-brick-500'],
+  accepted: ['تم القبول', 'bg-teal-50 text-teal-700'],
+  declined: ['تم الرفض', 'bg-brick-100 text-brick-500'],
+  withdrawn: ['تم سحب الطلب', 'bg-teal-50 text-muted'],
 }
 
 function formatDate(value) {
@@ -35,7 +36,7 @@ export default function CompatibilityRequestsPage() {
       const result = await respondToCompatibilityRequest(item.id, status)
       setData((current) => ({
         ...current,
-        incoming: current.incoming.map((entry) => entry.id === item.id ? result.request : entry),
+        [status === 'withdrawn' ? 'sent' : 'incoming']: current[status === 'withdrawn' ? 'sent' : 'incoming'].map((entry) => entry.id === item.id ? result.request : entry),
       }))
     } catch (err) {
       setError(err.message)
@@ -93,6 +94,7 @@ function RequestItem({ item, incoming, busy, onRespond, onOpen }) {
           <Button className="px-4 py-2 text-sm" disabled={busy} onClick={() => onRespond(item, 'accepted')}>قبول</Button>
           <Button variant="danger" className="px-4 py-2 text-sm" disabled={busy} onClick={() => onRespond(item, 'declined')}>رفض</Button>
         </>}
+        {!incoming && item.status === 'pending' && <Button variant="danger" className="px-4 py-2 text-sm" disabled={busy} onClick={() => onRespond(item, 'withdrawn')}>سحب الطلب</Button>}
       </div>
     </article>
   )
